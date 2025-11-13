@@ -32,3 +32,46 @@ class OrderRead(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# Trade schemas
+
+
+class TradeCreate(BaseModel):
+    symbol: str
+    side: str
+    price: float
+    qty: float
+    timestamp: Optional[datetime]
+    order_id: Optional[str]
+    user_id: Optional[int]
+    metadata: Optional[dict]
+
+
+class TradeRead(BaseModel):
+    id: int
+    symbol: str
+    side: str
+    price: float
+    qty: float
+    timestamp: Optional[datetime]
+    order_id: Optional[str]
+    user_id: Optional[int]
+    metadata: Optional[dict]
+
+    class Config:
+        orm_mode = True
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class InstrumentRead(BaseModel):
+    id: int
+    symbol: str
+    name: Optional[str]
+
+    class Config:
+        orm_mode = True
