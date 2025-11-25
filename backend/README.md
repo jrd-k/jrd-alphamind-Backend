@@ -1,31 +1,155 @@
-# jrd-alphamind-backend
+# jrd-alphamind Backend — Complete Documentation
 
-A production-ready FastAPI trading backend with support for multiple broker integrations (Exness, JustMarkets, Paper Trading), JWT authentication, order management, and trade persistence.
+A production-ready FastAPI trading automation platform with **intelligent decision-making**, **multi-broker support**, **real-time trade streaming**, and **comprehensive persistence**. Built for traders who want AI-powered signals fused with technical indicators.
 
-## Features
+---
 
-- ✅ **User Authentication** — JWT-based register/login
-- ✅ **Instruments** — Fetch available trading pairs
-- ✅ **Orders** — Submit, list, retrieve order status
-- ✅ **Trades** — Persistent trade history
-- ✅ **Account Management** — Check balance, open positions
-- ✅ **Broker Integration** — Pluggable broker clients (Exness, JustMarkets, Paper Trading)
-- ✅ **Real-time WebSocket** — Stream trades live via `/ws/trades` + Redis pub/sub
-- ✅ **Docker** — Full Docker Compose setup with Postgres + Redis
+## Table of Contents
 
-## Quick Start
+1. [Overview](#overview)
+2. [Core Features](#core-features)
+3. [Tech Stack](#tech-stack)
+4. [Getting Started](#getting-started)
+5. [API Reference](#api-reference)
+6. [Brain Service (AI + Indicators)](#brain-service-ai--indicators)
+7. [Broker Integration](#broker-integration)
+8. [Database & Migrations](#database--migrations)
+9. [Real-time WebSocket](#real-time-websocket)
+10. [Development](#development)
+11. [Deployment](#deployment)
+12. [Testing](#testing)
+13. [Troubleshooting](#troubleshooting)
 
-### 1. Prerequisites
+---
 
-- Docker and Docker Compose installed
-- Python 3.11+ (for local dev)
+## Overview
 
-### 2. Clone and setup
+**jrd-alphamind Backend** is a comprehensive trading system that automates order execution, real-time decision-making, and trade management. It combines:
+
+- **Technical Indicators** (Fibonacci, RSI, MACD, etc.) for market analysis
+- **AI Services** (DeepSeek search + OpenAI chat) for market intelligence
+- **Multiple Brokers** (Exness, JustMarkets, Paper Trading) for execution
+- **WebSocket Streaming** for real-time trade updates
+- **Persistent Storage** (PostgreSQL + SQLite) for trade history and decisions
+- **JWT Authentication** for secure API access
+
+The system is designed to be:
+- **Modular** — Easy to swap brokers or add new indicators
+- **Production-Ready** — Full test coverage, migrations, CI/CD
+- **Scalable** — Redis for pub/sub, background task scheduling
+- **Safe** — Live trading guards, risk checks, HMAC webhook verification
+
+---
+
+## Core Features
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| **User Authentication** | ✅ | JWT-based register/login with Argon2 hashing |
+| **Broker Integration** | ✅ | Paper (default), Exness, JustMarkets (extensible) |
+| **Order Management** | ✅ | Submit, list, track, retrieve status |
+| **Trade Persistence** | ✅ | Full trade history (SQLAlchemy ORM + Alembic migrations) |
+| **Account Management** | ✅ | Balance, open positions, account info |
+| **Real-time WebSocket** | ✅ | `/ws/trades` endpoint via Redis pub/sub |
+| **Brain Decisions** | ✅ | Indicator + AI fusion → BUY/SELL/HOLD signals |
+| **Decision Persistence** | ✅ | `brain_decisions` table with time-series queries |
+| **Orchestrator** | ✅ | Automated decision → order flow (optional scheduler) |
+| **Market Data Ingestion** | ✅ | Candle aggregation, quote streaming |
+| **Risk Management** | ⏳ | Position limits, stop-loss (foundation ready) |
+| **CORS Support** | ✅ | Configurable frontend origins |
+| **CI/CD** | ✅ | GitHub Actions with migrations, tests |
+| **Docker** | ✅ | Full Docker Compose setup (Postgres + Redis) |
+
+---
+
+## Tech Stack
+
+### Core
+- **FastAPI** 0.95.0+ — Modern async web framework
+- **SQLAlchemy** 2.0+ — ORM with registry pattern (non-deprecated)
+- **Pydantic** 2.0+ — Data validation with ConfigDict
+- **Alembic** 1.12.0+ — Database migrations (auto-generate)
+
+### Databases & Caching
+- **PostgreSQL** 15 — Production database (dev: SQLite)
+- **Redis** 7 — Pub/sub, transient cache, scheduler
+
+### Authentication & Security
+- **PyJWT** 2.6.0+ — JWT token generation & verification
+- **Passlib + Argon2** — Password hashing
+- **HMAC** — Webhook signature verification
+
+### Async & Background Tasks
+- **Uvicorn** 0.22.0+ — ASGI server
+- **Gunicorn** — Production WSGI wrapper
+- **asyncio** — Native async/await
+- **APScheduler** — Scheduled decision execution (optional)
+
+### Testing
+- **pytest** 7.0+ — Test framework
+- **pytest-asyncio** — Async test support
+- **pytest-cov** — Coverage reporting
+- **httpx** — Async HTTP client for tests
+- **respx** — HTTP mocking
+
+### HTTP Clients
+- **httpx** — Async HTTP (broker API calls)
+- **requests** — Sync HTTP (fallback)
+
+### Optional AI Services
+- **DeepSeek** API — Web search for market context
+- **OpenAI** API — GPT chat for trading recommendations
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Docker & Docker Compose** (recommended)
+- **Python 3.11+** (for local development)
+- **Git**
+
+### 1. Clone & Setup
 
 ```bash
-cd backend/
+git clone https://github.com/jrd-k/jrd-alphamind-Backend.git
+cd jrd-alphamind-Backend/backend
 cp .env.example .env
-# Edit .env if needed (defaults are fine for dev with paper trading)
+```
+
+### 2. Environment Configuration
+
+Edit `.env` for your setup. **Defaults work for local development:**
+
+```bash
+# Database
+DATABASE_URL=sqlite:///./dev.db          # SQLite for dev; PostgreSQL for prod
+REDIS_URL=redis://localhost:6379/0
+
+# JWT & Security
+JWT_SECRET=your-secret-key-change-me
+JWT_ALGORITHM=HS256
+JWT_EXP_MINUTES=60
+
+# Broker (paper = simulated, exness = real)
+BROKER=paper
+
+# Frontend CORS
+FRONTEND_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Optional: AI Services (leave empty to disable)
+DEEPSEEK_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
+
+# Optional: Live Trading (requires CONFIRM_LIVE="CONFIRM-LIVE" to enable)
+ENABLE_LIVE_TRADING=False
+CONFIRM_LIVE=
+
+# Scheduler
+SCHEDULER_ENABLED=True
+SCHEDULER_INTERVAL_SECONDS=60
+SCHEDULER_AUTO_EXECUTE=False
 ```
 
 ### 3. Run with Docker Compose
@@ -34,320 +158,377 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-This starts:
-- **FastAPI app** on http://127.0.0.1:8000
-- **Postgres** on localhost:5432
-- **Redis** on localhost:6379
+Services start on:
+- **API**: http://127.0.0.1:8000
+- **Swagger UI**: http://127.0.0.1:8000/docs
+- **ReDoc**: http://127.0.0.1:8000/redoc
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
 
-### 4. Access interactive docs
+### 4. Verify Setup
 
-Open http://127.0.0.1:8000/docs (Swagger UI)
+```bash
+# Check API health
+curl http://localhost:8000/docs
 
-## API Endpoints
+# Register a user
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test123"}'
+
+# Login
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test123"}' | jq -r '.access_token')
+
+# Test endpoint (requires auth)
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/accounts/balance
+```
+
+---
+
+## API Reference
+
+All endpoints are **versioned** (`/api/v1/`). Authentication required (JWT token) except where noted.
 
 ### Authentication
 
-```bash
-# Register
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"secret"}'
+#### Register
 
-# Login (get JWT token)
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"secret"}'
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "secure_password"
+}
 ```
 
-Response:
+**Response** (201):
 ```json
 {
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "id": 1,
+  "username": "alice",
+  "created_at": "2025-11-25T10:00:00Z"
+}
+```
+
+#### Login
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "secure_password"
+}
+```
+
+**Response** (200):
+```json
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
   "token_type": "bearer"
 }
 ```
 
 ### Instruments
 
-```bash
-# List available trading pairs
-curl http://localhost:8000/api/v1/instruments
+#### List Available Trading Pairs
+
+```http
+GET /api/v1/instruments
+```
+
+**Response** (200):
+```json
+{
+  "instruments": [
+    {
+      "symbol": "EURUSD",
+      "name": "Euro vs US Dollar",
+      "type": "forex"
+    },
+    ...
+  ]
+}
 ```
 
 ### Orders
 
-```bash
-# Submit order (simulated execution or real broker order)
-curl -X POST http://localhost:8000/api/v1/orders \
-  -H "Content-Type: application/json" \
-  -d '{"symbol":"EURUSD","quantity":0.1}'
+#### Submit Order
 
-# List orders
-curl http://localhost:8000/api/v1/orders
+```http
+POST /api/v1/orders
+Authorization: Bearer {token}
+Content-Type: application/json
 
-# Get specific order
-curl http://localhost:8000/api/v1/orders/1
+{
+  "symbol": "EURUSD",
+  "side": "buy",
+  "quantity": 0.1,
+  "order_type": "market",
+  "price": null
+}
+```
+
+**Response** (201):
+```json
+{
+  "id": "order_123",
+  "symbol": "EURUSD",
+  "side": "buy",
+  "quantity": 0.1,
+  "status": "filled",
+  "fill_price": 1.0812,
+  "timestamp": "2025-11-25T10:05:00Z"
+}
+```
+
+#### List Orders
+
+```http
+GET /api/v1/orders?symbol=EURUSD&limit=50&offset=0
+Authorization: Bearer {token}
+```
+
+**Response** (200):
+```json
+{
+  "total": 42,
+  "items": [
+    {
+      "id": "order_123",
+      "symbol": "EURUSD",
+      "side": "buy",
+      "quantity": 0.1,
+      "status": "filled",
+      "timestamp": "2025-11-25T10:05:00Z"
+    },
+    ...
+  ]
+}
+```
+
+#### Get Order Details
+
+```http
+GET /api/v1/orders/{order_id}
+Authorization: Bearer {token}
 ```
 
 ### Trades
 
-```bash
-# List all trades
-curl http://localhost:8000/api/v1/trades
+#### List Trades
 
-# Filter by symbol
-curl "http://localhost:8000/api/v1/trades?symbol=EURUSD&limit=50"
+```http
+GET /api/v1/trades?symbol=EURUSD&limit=50&offset=0
+Authorization: Bearer {token}
+```
+
+**Response** (200):
+```json
+{
+  "total": 123,
+  "items": [
+    {
+      "id": 123,
+      "symbol": "EURUSD",
+      "side": "buy",
+      "qty": 0.1,
+      "price": 1.0812,
+      "timestamp": "2025-11-25T10:05:00Z",
+      "order_id": "order_123",
+      "user_id": 1,
+      "metadata": {}
+    },
+    ...
+  ]
+}
+```
+
+#### Get Trade Details
+
+```http
+GET /api/v1/trades/{trade_id}
+Authorization: Bearer {token}
 ```
 
 ### Account
 
-```bash
-# Check balance
-curl http://localhost:8000/api/v1/accounts/balance
+#### Check Balance
 
-# Get open positions
-curl http://localhost:8000/api/v1/accounts/positions
+```http
+GET /api/v1/accounts/balance
+Authorization: Bearer {token}
 ```
 
-## WebSocket: Real-time Trade Streaming
-
-### Connect to the trades stream
-
-```bash
-# Using wscat (install: npm install -g wscat)
-wscat -c ws://localhost:8000/ws/trades
-
-# Or using websocat (Rust alternative)
-websocat ws://localhost:8000/ws/trades
-```
-
-### Receive trade updates
-
-When an order is executed, a trade message is published to Redis and broadcast to all connected WebSocket clients:
-
+**Response** (200):
 ```json
 {
-  "id": 123,
-  "symbol": "EURUSD",
-  "side": "buy",
-  "price": 1.0812,
-  "qty": 0.1,
-  "timestamp": "2025-11-17T10:05:00Z",
-  "order_id": "order_123",
-  "user_id": 1,
-  "metadata": {}
+  "currency": "USD",
+  "balance": 10000.50,
+  "available": 9500.25,
+  "used": 500.25
 }
 ```
 
-### Test with the HTML client
+#### Get Open Positions
 
-1. Open the browser
-2. Open `ws_trades_client.html` from the `backend/` folder (or serve it locally)
-3. Click "Connect"
-4. Submit an order via API or the Swagger UI
-5. Watch the trade appear in real-time on the WebSocket client
-
-### Example: Full end-to-end flow
-
-```bash
-# Terminal 1: Start backend
-docker-compose up --build
-
-# Terminal 2: Connect WebSocket client
-wscat -c ws://localhost:8000/ws/trades
-
-# Terminal 3: Register and submit an order
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"test","password":"test"}'
-
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"test","password":"test"}' | jq -r '.access_token')
-
-curl -X POST http://localhost:8000/api/v1/orders \
-  -H "Content-Type: application/json" \
-  -d '{"symbol":"EURUSD","quantity":0.1}'
-
-# Watch Terminal 2 — you should see the trade appear in real-time!
+```http
+GET /api/v1/accounts/positions
+Authorization: Bearer {token}
 ```
 
-## Broker Configuration
-
-### Paper Trading (Default)
-
-Safest for testing. Simulates fills at random prices.
-
-```bash
-# .env
-BROKER=paper
+**Response** (200):
+```json
+{
+  "positions": [
+    {
+      "symbol": "EURUSD",
+      "side": "long",
+      "qty": 0.5,
+      "entry_price": 1.0800,
+      "current_price": 1.0815,
+      "unrealized_pnl": 7.50
+    },
+    ...
+  ]
+}
 ```
 
-No credentials needed. Run locally or in Docker.
+---
 
-### Exness Integration
-
-Real broker connections (demo or live).
-
-1. Get API credentials from [Exness Dashboard](https://exness.com)
-2. Update `.env`:
-
-```
-BROKER=exness
-EXNESS_API_KEY=your_api_key
-EXNESS_BASE_URL=https://api.exness-demo.com  # or live URL
-```
-
-3. Restart: `docker-compose restart web`
-
-### JustMarkets Integration
-
-(Stub implementation — follow same pattern as ExnessClient)
-
-```
-BROKER=justmarkets
-JUSTMARKETS_API_KEY=your_api_key
-JUSTMARKETS_BASE_URL=https://api.justmarkets-demo.com
-```
-
-## Local Development
-
-### Setup virtual environment
-
-```bash
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1  # Windows
-source .venv/bin/activate      # macOS/Linux
-pip install -r requirements.txt
-```
-
-### Run locally (SQLite + no external services)
-
-```bash
-# .env with BROKER=paper and DATABASE_URL=sqlite:///./dev.db
-uvicorn app.main:app --reload
-```
-
-Access at http://127.0.0.1:8000
-
-### Run with PostgreSQL locally
-
-```bash
-# Start Postgres container only
-docker-compose up db -d
-
-# Update .env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/alphamind
-
-# Run app
-uvicorn app.main:app --reload
-```
-
-## Project Structure
-
-```
-app/
-├─ api/
-│  └─ v1/
-│     ├─ auth.py          # Login / register
-│     ├─ users.py         # User CRUD
-│     ├─ orders.py        # Order submission / list
-│     ├─ trades.py        # Trade history
-│     ├─ instruments.py   # Trading pairs
-│     ├─ accounts.py      # Balance / positions
-│     └─ marketdata.py    # Quotes
-├─ core/
-│  ├─ config.py           # Settings (env, JWT, DB URLs)
-│  ├─ security.py         # Password hashing, JWT helpers
-│  └─ database.py         # SQLAlchemy engine, session
-├─ models/
-│  ├─ orm_models.py       # SQLAlchemy ORM (User, Order, Trade, etc.)
-│  └─ pydantic_schemas.py # Request/response schemas
-├─ services/
-│  ├─ execution.py        # Order execution (broker routing)
-│  ├─ risk.py             # Risk checks (placeholder)
-│  ├─ market_data_ingest.py
-│  └─ brokers/            # Broker clients
-│     ├─ base.py          # Abstract BrokerClient
-│     ├─ exness_client.py
-│     ├─ justmarkets_client.py
-│     └─ paper_client.py
-├─ workers/
-│  └─ worker.py           # Async tasks (coming soon)
-└─ main.py               # FastAPI app entry
-```
-
-## Brain Decisions & AI Integration
+## Brain Service (AI + Indicators)
 
 ### What is the Brain?
 
-The `Brain` service fuses indicator signals with optional AI insights (DeepSeek search + OpenAI chat) to generate trading decisions (BUY/SELL/HOLD). Decisions are persisted to:
-- **Redis** (transient, for real-time dashboard)
-- **SQL Database** (long-term queryable history)
+The **Brain** is an intelligent decision-making system that:
+
+1. **Analyzes** candles using technical indicators (Fibonacci, RSI, MACD, etc.)
+2. **Enriches** analysis with optional AI (DeepSeek search for news, OpenAI for recommendations)
+3. **Generates** a trading decision: **BUY**, **SELL**, or **HOLD**
+4. **Persists** decisions to Redis (transient) + PostgreSQL (long-term queryable)
+
+**Signal Flow:**
+```
+Candles + Price → Indicator Analysis → Optional AI → Confidence-weighted Vote → Decision
+                                                           (60% indicator)
+                                                           (10% DeepSeek)
+                                                           (30% OpenAI)
+```
 
 ### Brain API Endpoints
 
-#### Compute a Decision
+#### Compute Decision
 
-```bash
+Compute a single decision for a symbol + candles.
+
+```http
 POST /api/v1/brain/decide
-Authorization: Bearer $TOKEN
+Authorization: Bearer {token}
 Content-Type: application/json
 
 {
   "symbol": "EURUSD",
   "candles": [
-    {"t": "2025-11-24T10:00:00Z", "o": 1.08, "h": 1.085, "l": 1.075, "c": 1.08, "v": 1000},
-    ...
+    {
+      "t": "2025-11-25T10:00:00Z",
+      "o": 1.0800,
+      "h": 1.0850,
+      "l": 1.0790,
+      "c": 1.0820,
+      "v": 10000
+    },
+    {
+      "t": "2025-11-25T10:05:00Z",
+      "o": 1.0820,
+      "h": 1.0860,
+      "l": 1.0810,
+      "c": 1.0840,
+      "v": 12000
+    }
   ],
-  "current_price": 1.08
+  "current_price": 1.0840
 }
 ```
 
-Response:
+**Response** (200):
 ```json
 {
   "symbol": "EURUSD",
   "decision": "BUY",
-  "indicator": { "summary": "...", "signals": "STRONG BUY" },
-  "deepseek": { "results": [...] },
-  "openai": { "choices": [...] },
-  "timestamp": "2025-11-24T10:05:00Z"
+  "confidence": 0.72,
+  "indicator": {
+    "summary": "Fibonacci retracement at 0.618; strong momentum",
+    "signals": "STRONG_BUY",
+    "fib_levels": [1.0750, 1.0775, 1.0800, 1.0825],
+    "rsi": 68.5,
+    "macd_signal": "bullish_crossover"
+  },
+  "deepseek": {
+    "query": "EUR/USD market news 2025-11-25",
+    "results": [
+      {
+        "title": "ECB decides on rate hold",
+        "snippet": "European Central Bank..."
+      }
+    ]
+  },
+  "openai": {
+    "model": "gpt-4",
+    "choices": [
+      {
+        "message": {
+          "content": "Current technical setup favors buyers. Watch 1.0850 resistance."
+        }
+      }
+    ]
+  },
+  "timestamp": "2025-11-25T10:05:00Z"
 }
 ```
 
 #### List Persisted Decisions
 
-```bash
+Query all historical decisions with filtering and pagination.
+
+```http
 GET /api/v1/brain/decisions
   ?symbol=EURUSD
   &since=2025-11-24T00:00:00Z
   &limit=50
   &offset=0
-Authorization: Bearer $TOKEN
+Authorization: Bearer {token}
 ```
 
-Query parameters:
-- `symbol` (optional): filter by exact symbol (e.g., `EURUSD`)
-- `since` (optional): ISO datetime; returns decisions with `timestamp >= since`
-- `limit` (optional): page size (default 50, max 200)
-- `offset` (optional): pagination offset (default 0)
+**Query Parameters:**
+- `symbol` (string, optional): Filter by exact symbol (e.g., `EURUSD`)
+- `since` (ISO datetime, optional): Return decisions with `timestamp >= since`
+- `limit` (integer, default 50, max 200): Page size
+- `offset` (integer, default 0): Pagination offset
 
-Response:
+**Response** (200):
 ```json
 {
-  "total": 42,
+  "total": 127,
   "count": 50,
   "items": [
     {
-      "id": 1,
+      "id": 42,
       "symbol": "EURUSD",
       "decision": "BUY",
-      "indicator": {...},
+      "indicator": {
+        "summary": "...",
+        "signals": "STRONG_BUY"
+      },
       "deepseek": null,
       "openai": null,
-      "timestamp": "2025-11-24T10:05:00Z",
-      "created_at": "2025-11-24T10:05:05Z"
+      "timestamp": "2025-11-25T10:05:00Z",
+      "created_at": "2025-11-25T10:05:05Z"
     },
     ...
   ]
@@ -356,127 +537,837 @@ Response:
 
 #### Get Recent Decisions (Redis-backed)
 
-```bash
+Fetch the last N decisions from Redis cache (transient, fast).
+
+```http
 GET /api/v1/brain/recent?limit=20
-Authorization: Bearer $TOKEN
+Authorization: Bearer {token}
 ```
 
-Returns the last 20 decisions from Redis (transient, not persisted).
+**Response** (200):
+```json
+{
+  "decisions": [
+    {
+      "symbol": "EURUSD",
+      "decision": "BUY",
+      "timestamp": "2025-11-25T10:05:00Z"
+    },
+    ...
+  ]
+}
+```
 
-### Setting up AI Integration (Optional)
+### Brain Configuration
 
-If you want AI-powered decisions, add API keys to `.env`:
+#### Enable AI Services (Optional)
+
+To enrich decisions with AI insights, add API keys to `.env`:
 
 ```bash
-# DeepSeek (search context)
+# DeepSeek: Web search for market context
 DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.ai/v1
 
-# OpenAI (chat recommendations)
+# OpenAI: GPT chat for recommendations
 OPENAI_API_KEY=sk-...
 OPENAI_BASE_URL=https://api.openai.com/v1
 ```
 
-If keys are missing, the Brain still works with indicators only (no AI enrichment).
+**If keys are missing**, the Brain still works with indicators only (no AI enrichment).
 
-### Database Schema
+#### Indicator Configuration
 
-The `brain_decisions` table stores all decisions:
+Indicators are computed server-side. Key indicators include:
+
+- **Fibonacci Retracement** — Support/resistance levels
+- **RSI (Relative Strength Index)** — Momentum (0-100)
+- **MACD (Moving Average Convergence Divergence)** — Trend strength
+- **Bollinger Bands** — Volatility
+
+### Brain Database Schema
+
+The `brain_decisions` table persists all decisions for historical analysis:
 
 ```sql
 CREATE TABLE brain_decisions (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
   symbol VARCHAR(255) NOT NULL,
-  decision VARCHAR(50) NOT NULL,       -- BUY, SELL, HOLD
-  indicator JSON,                      -- Indicator output (Fibonacci, etc.)
-  deepseek JSON,                       -- DeepSeek search results
-  openai JSON,                         -- OpenAI chat response
-  timestamp DATETIME NOT NULL,         -- Decision timestamp
-  created_at DATETIME DEFAULT NOW()
+  decision VARCHAR(50) NOT NULL,     -- 'BUY', 'SELL', 'HOLD'
+  indicator JSON,                    -- Full indicator output
+  deepseek JSON,                     -- DeepSeek API response
+  openai JSON,                       -- OpenAI API response
+  timestamp DATETIME NOT NULL,       -- Decision timestamp (UTC)
+  created_at DATETIME DEFAULT NOW()  -- Row creation time
 );
 
 -- Indexes for fast queries
 CREATE INDEX idx_symbol ON brain_decisions(symbol);
 CREATE INDEX idx_timestamp ON brain_decisions(timestamp);
+CREATE INDEX idx_symbol_timestamp ON brain_decisions(symbol, timestamp);
 ```
+
+---
+
+## Broker Integration
+
+### Architecture
+
+Brokers are pluggable via the `BrokerClient` interface. The system routes orders to the configured broker.
+
+```
+Order Request → Execution Service → Broker Selector → BrokerClient → Broker API
+                                          ↓
+                                    (paper / exness / justmarkets)
+```
+
+### Paper Trading (Default)
+
+**Best for development and testing.** Simulates fills at realistic prices.
+
+```bash
+# .env
+BROKER=paper
+```
+
+**Features:**
+- ✅ No API keys required
+- ✅ Instant fills
+- ✅ Randomized prices (±0.5% of market)
+- ✅ Full order state tracking
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"EURUSD","quantity":0.1}'
+
+# Response: Filled immediately at a simulated price
+```
+
+### Exness Integration
+
+**Real broker connection** (demo or live accounts).
+
+#### 1. Get API Credentials
+
+- Log in to [Exness Dashboard](https://exness.com)
+- Navigate to **Settings → API Integrations**
+- Generate an API key
+- Note the **Base URL** (demo or live)
+
+#### 2. Configure .env
+
+```bash
+BROKER=exness
+EXNESS_API_KEY=your_api_key_here
+EXNESS_BASE_URL=https://api.exness-demo.com
+# For live trading (requires confirmation):
+# EXNESS_BASE_URL=https://api.exness.com
+```
+
+#### 3. Restart Backend
+
+```bash
+docker-compose restart web
+```
+
+#### 4. Submit Order
+
+```bash
+curl -X POST http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"EURUSD","quantity":0.1}'
+
+# Order routed to Exness; response includes live fill price
+```
+
+### JustMarkets Integration
+
+**Stub implementation** (follow same pattern as ExnessClient).
+
+```bash
+BROKER=justmarkets
+JUSTMARKETS_API_KEY=your_api_key_here
+JUSTMARKETS_BASE_URL=https://api.justmarkets-demo.com
+```
+
+### Adding a New Broker
+
+1. Create `app/services/brokers/mybroker_client.py`:
+   ```python
+   from app.services.brokers.base import BrokerClient
+
+   class MyBrokerClient(BrokerClient):
+       def __init__(self, api_key: str, base_url: str):
+           self.api_key = api_key
+           self.base_url = base_url
+
+       async def submit_order(self, order: Order) -> OrderResponse:
+           # Call MyBroker API
+           pass
+
+       async def get_balance(self) -> AccountBalance:
+           pass
+   ```
+
+2. Register in `app/services/execution.py`:
+   ```python
+   if broker_type == "mybroker":
+       return MyBrokerClient(api_key, base_url)
+   ```
+
+3. Update `.env`:
+   ```bash
+   BROKER=mybroker
+   MYBROKER_API_KEY=...
+   MYBROKER_BASE_URL=...
+   ```
+
+---
+
+## Database & Migrations
+
+### Architecture
+
+The system uses **SQLAlchemy 2.0** (modern registry pattern) with **Alembic** for version control.
+
+```
+SQLAlchemy Models → Alembic autogenerate → .py migration files → alembic upgrade head
+    ↓
+Database Schema
+```
+
+### Key Tables
+
+| Table | Purpose |
+|-------|---------|
+| `user` | Users (username, password hash) |
+| `order` | Order history |
+| `trade` | Executed trades |
+| `brain_decisions` | AI decisions (symbol, decision, timestamp) |
 
 ### Running Migrations
 
-Always run migrations before starting the app:
+#### First Time Setup
 
 ```bash
 cd backend
 python -m alembic upgrade head
 ```
 
-This creates the `brain_decisions` table and any other pending schema changes.
+This applies all pending migrations to the database.
 
-### CI/CD with Migrations
+#### After Model Changes
 
-The GitHub Actions workflow automatically runs:
+1. Update `app/models/orm_models.py`
+2. Auto-generate migration:
+   ```bash
+   python -m alembic revision --autogenerate -m "add new column"
+   ```
+3. Review the generated file in `alembic/versions/`
+4. Apply:
+   ```bash
+   python -m alembic upgrade head
+   ```
 
-```yaml
-- name: Run Alembic migrations
-  run: python -m alembic upgrade head
+#### View Migration History
+
+```bash
+python -m alembic history
 ```
 
-This ensures the test database includes all schema changes before running tests.
+**Output:**
+```
+<base> -> 4975dd530ef4 (head), initial db schema
+```
 
-## Next Steps
+#### Rollback to Previous Version
 
-- [x] WebSocket endpoint (`/ws/trades`) for real-time trade streaming
-- [x] Brain decision service (indicator + AI fusion)
-- [x] DB persistence for decisions (Alembic migrations)
-- [ ] Async worker tasks (Celery/RQ) for background order processing
-- [ ] TradingView chart integration to display orders/trades
-- [ ] Account statement and P&L reports
-- [ ] Risk management (position limits, stop-loss, etc.)
+```bash
+python -m alembic downgrade -1
+```
+
+### Production Database
+
+For production, use **PostgreSQL 15+**:
+
+```bash
+DATABASE_URL=postgresql://user:password@prod-db.example.com:5432/alphamind
+```
+
+Run migrations:
+```bash
+python -m alembic upgrade head
+```
+
+### Development Database
+
+For development, **SQLite** is default and zero-config:
+
+```bash
+DATABASE_URL=sqlite:///./dev.db
+```
+
+Migrations work identically.
+
+---
+
+## Real-time WebSocket
+
+### Connect to Trade Stream
+
+The `/ws/trades` endpoint broadcasts all executed trades in real-time via Redis pub/sub.
+
+#### Using wscat (Node.js)
+
+```bash
+npm install -g wscat
+wscat -c ws://localhost:8000/ws/trades
+```
+
+#### Using websocat (Rust)
+
+```bash
+cargo install websocat
+websocat ws://localhost:8000/ws/trades
+```
+
+#### Using Python
+
+```python
+import asyncio
+import websockets
+
+async def stream_trades():
+    async with websockets.connect("ws://localhost:8000/ws/trades") as ws:
+        while True:
+            message = await ws.recv()
+            print(f"Trade: {message}")
+
+asyncio.run(stream_trades())
+```
+
+### Message Format
+
+When an order is executed, a trade event is published:
+
+```json
+{
+  "id": 123,
+  "symbol": "EURUSD",
+  "side": "buy",
+  "price": 1.0812,
+  "qty": 0.1,
+  "timestamp": "2025-11-25T10:05:00Z",
+  "order_id": "order_abc123",
+  "user_id": 1,
+  "metadata": {}
+}
+```
+
+### End-to-End Example
+
+**Terminal 1 — Start Backend:**
+```bash
+docker-compose up --build
+```
+
+**Terminal 2 — Connect WebSocket Client:**
+```bash
+wscat -c ws://localhost:8000/ws/trades
+# Connected. Waiting for trades...
+```
+
+**Terminal 3 — Execute Orders:**
+```bash
+# Register
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -d '{"username":"trader1","password":"secret"}'
+
+# Login
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -d '{"username":"trader1","password":"secret"}' | jq -r '.access_token')
+
+# Submit order
+curl -X POST http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"symbol":"EURUSD","quantity":0.1}'
+```
+
+**Terminal 2 Output:**
+```json
+{
+  "id": 123,
+  "symbol": "EURUSD",
+  "side": "buy",
+  "price": 1.0812,
+  "qty": 0.1,
+  "timestamp": "2025-11-25T10:05:00Z"
+}
+```
+
+### HTML Client
+
+A test client is included: `ws_trades_client.html`
+
+1. Open in browser
+2. Click "Connect"
+3. Submit an order via Swagger UI (http://localhost:8000/docs)
+4. Watch trades appear in real-time
+
+---
+
+## Development
+
+### Local Setup (No Docker)
+
+#### 1. Create Virtual Environment
+
+```bash
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1      # Windows PowerShell
+source .venv/bin/activate          # macOS/Linux
+```
+
+#### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 3. Configure .env
+
+```bash
+cp .env.example .env
+# Edit .env:
+# DATABASE_URL=sqlite:///./dev.db    (SQLite for dev)
+# BROKER=paper                        (Paper trading)
+```
+
+#### 4. Run App
+
+```bash
+uvicorn app.main:app --reload
+```
+
+**Output:**
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000
+```
+
+#### 5. Test
+
+```bash
+curl http://localhost:8000/docs
+```
+
+### Local Setup (With PostgreSQL)
+
+If you prefer PostgreSQL locally:
+
+#### 1. Start PostgreSQL Container
+
+```bash
+docker-compose up db -d
+```
+
+#### 2. Update .env
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/alphamind
+```
+
+#### 3. Run Migrations
+
+```bash
+python -m alembic upgrade head
+```
+
+#### 4. Run App
+
+```bash
+uvicorn app.main:app --reload
+```
+
+### Project Structure
+
+```
+backend/
+├── app/
+│   ├── api/
+│   │   └── v1/
+│   │       ├── auth.py              # POST /auth/register, /auth/login
+│   │       ├── orders.py            # POST /orders, GET /orders
+│   │       ├── trades.py            # GET /trades
+│   │       ├── accounts.py          # GET /accounts/balance, /positions
+│   │       ├── instruments.py       # GET /instruments
+│   │       ├── brain.py             # POST /brain/decide, GET /brain/decisions
+│   │       ├── orchestrator.py      # Automated decision → order flow
+│   │       ├── indicators.py        # Indicator computation
+│   │       ├── websockets.py        # WS /ws/trades
+│   │       ├── webhook.py           # POST /webhook/* (external events)
+│   │       └── marketdata.py        # GET /marketdata
+│   ├── core/
+│   │   ├── config.py                # Settings (env vars)
+│   │   ├── security.py              # JWT, password hashing
+│   │   └── database.py              # SQLAlchemy setup
+│   ├── models/
+│   │   ├── orm_models.py            # SQLAlchemy models (User, Order, Trade, etc.)
+│   │   └── pydantic_schemas.py      # Pydantic request/response schemas
+│   ├── services/
+│   │   ├── execution.py             # Order execution (broker routing)
+│   │   ├── risk.py                  # Risk checks
+│   │   ├── market_data_ingest.py    # Candle aggregation
+│   │   ├── brokers/
+│   │   │   ├── base.py              # Abstract BrokerClient
+│   │   │   ├── paper_client.py      # Paper trading (simulated)
+│   │   │   ├── exness_client.py     # Exness integration
+│   │   │   └── justmarkets_client.py # JustMarkets integration
+│   │   └── brain/
+│   │       ├── brain.py             # Decision logic (indicator + AI)
+│   │       └── store.py             # Persistence (Redis + DB)
+│   ├── workers/
+│   │   ├── scheduler.py             # Background task scheduler
+│   │   └── worker.py                # Async job execution
+│   └── main.py                      # FastAPI app entry
+├── alembic/
+│   ├── versions/                    # Migration files
+│   └── env.py                       # Alembic config
+├── tests/
+│   ├── test_auth.py                 # Auth tests
+│   ├── test_orders.py               # Order tests
+│   ├── test_brain*.py               # Brain tests
+│   └── ...
+├── .env.example                     # Example environment file
+├── .env                             # Actual env (git-ignored)
+├── requirements.txt                 # Python dependencies
+├── alembic.ini                      # Alembic config
+├── docker-compose.yml               # Docker services
+├── Dockerfile                       # Docker image
+├── pytest.ini                       # Pytest config
+└── README.md                        # Documentation
+```
+
+### Code Style & Linting
+
+The project follows PEP 8. Recommended tools:
+
+```bash
+pip install black flake8 isort
+
+# Format code
+black app/ tests/
+
+# Sort imports
+isort app/ tests/
+
+# Check style
+flake8 app/ tests/
+```
+
+---
+
+## Deployment
+
+### Docker Deployment (Recommended)
+
+#### 1. Configure Production .env
+
+```bash
+# Database (use managed PostgreSQL service)
+DATABASE_URL=postgresql://user:password@prod-db.example.com:5432/alphamind
+
+# Redis (use managed Redis service)
+REDIS_URL=redis://:password@prod-redis.example.com:6379/0
+
+# Security
+JWT_SECRET=your-very-secure-random-string-here
+JWT_EXP_MINUTES=60
+
+# Broker
+BROKER=exness
+EXNESS_API_KEY=your_production_key
+
+# Optional: AI Services
+DEEPSEEK_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
+
+# Frontend CORS
+FRONTEND_ORIGINS=https://app.example.com
+
+# Live Trading Guard
+ENABLE_LIVE_TRADING=True
+CONFIRM_LIVE=CONFIRM-LIVE
+```
+
+#### 2. Build Image
+
+```bash
+docker build -t jrd-alphamind-backend:latest .
+```
+
+#### 3. Push to Registry
+
+```bash
+docker tag jrd-alphamind-backend:latest registry.example.com/jrd-alphamind-backend:latest
+docker push registry.example.com/jrd-alphamind-backend:latest
+```
+
+#### 4. Deploy to Kubernetes (Example)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jrd-alphamind-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: registry.example.com/jrd-alphamind-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: redis-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: jwt-secret
+        # ... other env vars
+```
+
+### Gunicorn Deployment
+
+For production ASGI deployment without Docker:
+
+```bash
+pip install gunicorn
+
+gunicorn \
+  --workers 4 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8000 \
+  --access-logfile - \
+  --error-logfile - \
+  app.main:app
+```
+
+### Pre-deployment Checklist
+
+- [ ] Run migrations: `alembic upgrade head`
+- [ ] Run tests: `pytest -v`
+- [ ] Check database connectivity
+- [ ] Verify Redis connectivity
+- [ ] Set `JWT_SECRET` to a secure value
+- [ ] Set `ENABLE_LIVE_TRADING` appropriately
+- [ ] Configure `FRONTEND_ORIGINS` for your domain
+- [ ] Set up SSL/TLS (HTTPS)
+- [ ] Configure logging & monitoring
+- [ ] Set up backup strategy for PostgreSQL
+- [ ] Test broker API keys on demo account first
+
+---
 
 ## Testing
 
-```bash
-# Install dev dependencies
-pip install pytest pytest-asyncio httpx
+### Run All Tests
 
-# Run tests (when available)
-pytest tests/
+```bash
+cd backend
+pytest -v
 ```
+
+### Run Specific Test File
+
+```bash
+pytest tests/test_auth.py -v
+```
+
+### Run Tests with Coverage
+
+```bash
+pytest --cov=app --cov-report=html
+```
+
+Opens `htmlcov/index.html` with coverage details.
+
+### Run Tests in Watch Mode
+
+```bash
+pip install pytest-watch
+ptw
+```
+
+### Test Structure
+
+```
+tests/
+├── test_auth.py              # Authentication tests
+├── test_orders.py            # Order submission & retrieval
+├── test_trades.py            # Trade history
+├── test_brain*.py            # Brain decision logic
+├── test_websockets.py        # WebSocket streaming
+└── conftest.py               # Pytest fixtures
+```
+
+### Example Test
+
+```python
+import pytest
+from httpx import AsyncClient
+from app.main import app
+
+@pytest.mark.asyncio
+async def test_register():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={"username": "testuser", "password": "secret"}
+        )
+        assert response.status_code == 201
+        assert response.json()["username"] == "testuser"
+```
+
+---
 
 ## Troubleshooting
 
-### "Connection refused" on Postgres/Redis
+### "Connection refused" on PostgreSQL/Redis
 
-Ensure Docker services are running:
+**Problem:** Docker services not running.
 
+**Solution:**
 ```bash
 docker-compose ps
+docker-compose up -d
 ```
 
-Restart if needed:
+### "Invalid token" on API calls
 
+**Problem:** JWT token expired or incorrect.
+
+**Solution:**
 ```bash
-docker-compose restart
+# Re-login to get a fresh token
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test"}' | jq -r '.access_token')
+
+echo $TOKEN
 ```
 
-### "Invalid credentials" on login
+### "Order not filling"
 
-Make sure you registered a user first:
+**Problem:** Broker not configured correctly.
 
+**Solution:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -d '{"username":"test","password":"test"}'
+# Check broker setting
+echo $BROKER
+
+# For paper trading
+export BROKER=paper
+
+# For Exness, verify API key
+echo $EXNESS_API_KEY
 ```
 
-### Order not filling
+### "Migration failed"
 
-Check the BROKER env var:
+**Problem:** Alembic can't connect to database.
 
+**Solution:**
 ```bash
-echo $BROKER  # Should print "paper" or "exness"
+# Verify DATABASE_URL
+echo $DATABASE_URL
+
+# For Docker, ensure services are running
+docker-compose ps
+
+# Check database logs
+docker-compose logs db
 ```
 
-For paper trading, fills should be instant. For real brokers, ensure API credentials are valid.
+### "WebSocket connection refused"
+
+**Problem:** Redis pub/sub not configured.
+
+**Solution:**
+```bash
+# Verify Redis is running
+docker-compose ps redis
+
+# Check Redis connection
+redis-cli -h localhost ping
+# Should respond: PONG
+```
+
+### "CORS error" from frontend
+
+**Problem:** Frontend origin not whitelisted.
+
+**Solution:**
+```bash
+# Update .env
+FRONTEND_ORIGINS=https://your-frontend.com,http://localhost:3000
+
+# Restart backend
+docker-compose restart web
+```
+
+### Performance Issues
+
+**Problem:** Slow query responses.
+
+**Solution:**
+```bash
+# Add database indexes
+# Check app/models/orm_models.py for __table_args__ with indexes
+
+# For large datasets, use pagination
+curl "http://localhost:8000/api/v1/trades?limit=50&offset=0"
+
+# Monitor Redis memory
+redis-cli info memory
+```
+
+---
 
 ## License
 
 MIT
+
+---
+
+## Support
+
+For issues, feature requests, or questions:
+
+- 📧 **GitHub Issues**: [jrd-alphamind-Backend/issues](https://github.com/jrd-k/jrd-alphamind-Backend/issues)
+- 📚 **Docs**: [Frontend Integration Guide](./docs/FRONTEND_INTEGRATION.md)
+
+---
+
+**Made with ❤️ for traders who code**
