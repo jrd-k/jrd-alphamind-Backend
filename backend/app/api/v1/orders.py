@@ -5,14 +5,15 @@ from app.core.database import get_db
 from app.models.pydantic_schemas import OrderCreate, OrderRead
 from app.models.orm_models import Order
 from app.services import execution
+from app.core.security import get_current_user
 
 router = APIRouter()
 
 
 @router.post("/", response_model=OrderRead)
-def submit_order(order_in: OrderCreate, db: Session = Depends(get_db)):
-    # for demo: user_id is omitted (set to None)
-    o = Order(user_id=None, symbol=order_in.symbol, quantity=order_in.quantity, status="new")
+def submit_order(order_in: OrderCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # create order associated with authenticated user
+    o = Order(user_id=current_user.id, symbol=order_in.symbol, quantity=order_in.quantity, status="new")
     db.add(o)
     db.commit()
     db.refresh(o)
@@ -28,7 +29,11 @@ def submit_order(order_in: OrderCreate, db: Session = Depends(get_db)):
     }
     # call execution service (will persist trade and publish)
     try:
-        execution.execute_order(exec_payload)
+        # execution.execute_order is async-capable; call sync wrapper if available
+        if hasattr(execution, "execute_order_sync"):
+            execution.execute_order_sync(exec_payload)
+        else:
+            execution.execute_order(exec_payload)
         # update order status
         o.status = "filled"
         db.add(o)

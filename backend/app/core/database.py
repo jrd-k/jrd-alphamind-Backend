@@ -14,7 +14,6 @@ engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@contextmanager
 def get_db() -> Iterator:
     db = SessionLocal()
     try:
@@ -25,7 +24,8 @@ def get_db() -> Iterator:
 
 def init_db():
     # import models Base to create tables
-    from app.models.orm_models import Base, Instrument
+    # ensure all models are imported so they are registered on Base.metadata
+    from app.models.orm_models import Base, Instrument, IndicatorSignal
     import time
     from sqlalchemy.exc import OperationalError
 

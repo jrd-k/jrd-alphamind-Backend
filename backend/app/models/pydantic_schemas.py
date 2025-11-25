@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -9,12 +9,11 @@ class UserCreate(BaseModel):
 
 
 class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     username: str
     created_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True
 
 
 class OrderCreate(BaseModel):
@@ -23,15 +22,14 @@ class OrderCreate(BaseModel):
 
 
 class OrderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     user_id: int
     symbol: str
     quantity: float
     status: str
     created_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True
 
 
 # Trade schemas
@@ -49,6 +47,8 @@ class TradeCreate(BaseModel):
 
 
 class TradeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     symbol: str
     side: str
@@ -59,9 +59,6 @@ class TradeRead(BaseModel):
     user_id: Optional[int]
     metadata: Optional[dict]
 
-    class Config:
-        orm_mode = True
-
 
 class Token(BaseModel):
     access_token: str
@@ -69,9 +66,29 @@ class Token(BaseModel):
 
 
 class InstrumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     symbol: str
     name: Optional[str]
 
-    class Config:
-        orm_mode = True
+
+# Indicator schemas
+class IndicatorCreate(BaseModel):
+    symbol: str
+    source: Optional[str] = "supertrend_ai"
+    signal: Optional[str] = None
+    value: Optional[dict] = None
+    timestamp: Optional[datetime] = None
+
+
+class IndicatorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    symbol: str
+    source: str
+    signal: Optional[str]
+    value: Optional[dict]
+    timestamp: Optional[datetime]
+    created_at: Optional[datetime]

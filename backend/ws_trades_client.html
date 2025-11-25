@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jrd-alphamind WebSocket Trades Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%);
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #2d2d3d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: blink 1s infinite;
+        }
+
+        .status-light.connected {
+            background: #44ff44;
+            animation: none;
+        }
+
+        @keyframes blink {
+            0%, 50% {
+                opacity: 1;
+            }
+            51%, 100% {
+                opacity: 0.3;
+            }
+        }
+
+        .info-box {
+            background: #3d3d4d;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+            margin-bottom: 20px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            font-size: 0.95em;
+        }
+
+        .trades-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        .trade-card {
+            background: #3d3d4d;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .trade-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(79, 172, 254, 0.2);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .symbol {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .trade-side {
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .trade-side.buy {
+            background: rgba(68, 255, 68, 0.2);
+            color: #44ff44;
+        }
+
+        .trade-side.sell {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+        }
+
+        .trade-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .detail {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 0.8em;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .trades-container {
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .trades-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .trades-container::-webkit-scrollbar-track {
+            background: #2d2d3d;
+            border-radius: 4px;
+        }
+
+        .trades-container::-webkit-scrollbar-thumb {
+            background: #4facfe;
+            border-radius: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-connect {
+            background: #4facfe;
+            color: white;
+        }
+
+        .btn-connect:hover {
+            background: #3a92d6;
+        }
+
+        .btn-connect.connected {
+            background: #44ff44;
+            color: #000;
+        }
+
+        .btn-connect.connected:hover {
+            background: #33cc33;
+        }
+
+        .btn-clear {
+            background: #666;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #777;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #3d3d4d;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #444;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Trade Monitor</h1>
+            <p>Real-time trade streaming via WebSocket</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-light" id="status-light"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+            <div>
+                <span id="trade-count">0</span> trades received
+            </div>
+        </div>
+
+        <div class="info-box">
+            <p><strong>WebSocket URL:</strong> <code id="ws-url">ws://localhost:8000/ws/trades</code></p>
+            <p><strong>Status:</strong> Open DevTools (F12) → Console to see debug logs</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn-connect" id="connect-btn" onclick="toggleConnection()">
+                Connect
+            </button>
+            <button class="btn-clear" onclick="clearTrades()">
+                Clear Trades
+            </button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-trades">0</div>
+                <div class="stat-label">Total Trades</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="buy-count">0</div>
+                <div class="stat-label">Buys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="sell-count">0</div>
+                <div class="stat-label">Sells</div>
+            </div>
+        </div>
+
+        <div class="trades-container" id="trades-container">
+            <div class="empty-state">Waiting for trades...</div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let trades = [];
+        let isConnected = false;
+
+        const wsUrl = `ws://${window.location.host}/ws/trades`;
+
+        function updateWsUrl() {
+            document.getElementById('ws-url').textContent = wsUrl;
+        }
+
+        function updateStatus(connected) {
+            isConnected = connected;
+            const statusLight = document.getElementById('status-light');
+            const statusText = document.getElementById('status-text');
+            const connectBtn = document.getElementById('connect-btn');
+
+            if (connected) {
+                statusLight.classList.add('connected');
+                statusText.textContent = 'Connected';
+                connectBtn.classList.add('connected');
+                connectBtn.textContent = 'Disconnect';
+            } else {
+                statusLight.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                connectBtn.classList.remove('connected');
+                connectBtn.textContent = 'Connect';
+            }
+        }
+
+        function connect() {
+            if (isConnected) return;
+
+            console.log('Connecting to WebSocket:', wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                updateStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const trade = JSON.parse(event.data);
+                    console.log('Trade received:', trade);
+                    addTrade(trade);
+                } catch (e) {
+                    console.error('Failed to parse trade message:', event.data, e);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus(false);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket closed');
+                updateStatus(false);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                updateStatus(false);
+            }
+        }
+
+        function toggleConnection() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        function addTrade(trade) {
+            trades.unshift(trade);
+            renderTrades();
+            updateStats();
+        }
+
+        function clearTrades() {
+            trades = [];
+            renderTrades();
+            updateStats();
+        }
+
+        function renderTrades() {
+            const container = document.getElementById('trades-container');
+            
+            if (trades.length === 0) {
+                container.innerHTML = '<div class="empty-state">Waiting for trades...</div>';
+                return;
+            }
+
+            container.innerHTML = trades.map((trade, idx) => {
+                const timestamp = new Date(trade.timestamp).toLocaleTimeString();
+                return `
+                    <div class="trade-card">
+                        <div class="trade-header">
+                            <span class="symbol">${trade.symbol}</span>
+                            <span class="trade-side ${trade.side}">${trade.side.toUpperCase()}</span>
+                        </div>
+                        <div class="trade-details">
+                            <div class="detail">
+                                <div class="detail-label">Price</div>
+                                <div class="detail-value">${trade.price.toFixed(5)}</div>
+                            </div>
+                            <div class="detail">
+                                <div class="detail-label">Quantity</div>
+                                <div class="detail-value">${trade.qty}</div>
+                            </div>
+                            <div class="detail">
+                                <div class="detail-label">Time</div>
+                                <div class="detail-value">${timestamp}</div>
+                            </div>
+                            <div class="detail">
+                                <div class="detail-label">Order ID</div>
+                                <div class="detail-value">${trade.order_id || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const total = trades.length;
+            const buys = trades.filter(t => t.side === 'buy').length;
+            const sells = trades.filter(t => t.side === 'sell').length;
+
+            document.getElementById('total-trades').textContent = total;
+            document.getElementById('buy-count').textContent = buys;
+            document.getElementById('sell-count').textContent = sells;
+            document.getElementById('trade-count').textContent = total;
+        }
+
+        // Initialize
+        updateWsUrl();
+        updateStatus(false);
+    </script>
+</body>
+</html>
