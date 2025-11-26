@@ -807,6 +807,208 @@ curl -X POST http://localhost:8000/api/v1/orders \
 
 ---
 
+## Economic Calendar
+
+### Overview
+
+The Economic Calendar service tracks **major economic events** that affect currency pairs. Use it to:
+- ✅ Check for high-impact events before trading
+- ✅ Query events affecting specific pairs (e.g., EURUSD)
+- ✅ Get quick trading safety checks
+- ✅ Avoid trading during major data releases
+
+### Architecture
+
+```
+EconomicCalendar Service
+    ↓
+Trading Economics API (requires optional API key)
+    ↓
+Mock Data Fallback (for development/demo)
+```
+
+### Configuration
+
+#### Optional: Trading Economics API Key
+
+For real economic data, register at [Trading Economics](https://tradingeconomics.com) and get an API key:
+
+```bash
+# .env
+TRADING_ECONOMICS_KEY=your_api_key_here
+```
+
+If not provided, the service uses realistic mock data automatically.
+
+### API Endpoints
+
+#### 1. List Upcoming Events
+
+Get upcoming economic events with filtering.
+
+```http
+GET /api/v1/economic-calendar/upcoming
+  ?hours_ahead=168
+  &currencies=USD,EUR
+  &min_impact=high
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+- `hours_ahead` (integer, 1-720, default 168): Look ahead N hours
+- `currencies` (string, comma-separated, optional): Filter by currency (e.g., `USD,EUR,GBP`)
+- `min_impact` (string, `low|medium|high`, default `low`): Minimum impact level
+
+**Response** (200):
+```json
+{
+  "total": 42,
+  "items": [
+    {
+      "name": "Non-Farm Payroll",
+      "country": "United States",
+      "currency": "USD",
+      "impact": "high",
+      "scheduled_time": "2025-12-05T13:30:00Z",
+      "forecast_value": "227,000",
+      "previous_value": "226,500",
+      "actual_value": null,
+      "source": "mock"
+    },
+    {
+      "name": "ECB Interest Rate Decision",
+      "country": "Euro Area",
+      "currency": "EUR",
+      "impact": "high",
+      "scheduled_time": "2025-12-18T13:45:00Z",
+      "forecast_value": "3.0%",
+      "previous_value": "3.5%",
+      "actual_value": null,
+      "source": "mock"
+    }
+  ]
+}
+```
+
+#### 2. Events for Specific Pair
+
+Get events that affect a specific trading pair.
+
+```http
+GET /api/v1/economic-calendar/pair/EURUSD
+  ?minutes_ahead=1440
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+- `minutes_ahead` (integer, 1-1440, default 1440): Look ahead N minutes
+
+**Response** (200):
+```json
+{
+  "symbol": "EURUSD",
+  "high_impact_events": 3,
+  "should_avoid_trading": true,
+  "events": [
+    {
+      "name": "ECB Interest Rate Decision",
+      "country": "Euro Area",
+      "currency": "EUR",
+      "impact": "high",
+      "scheduled_time": "2025-12-18T13:45:00Z"
+    },
+    {
+      "name": "US CPI Report",
+      "country": "United States",
+      "currency": "USD",
+      "impact": "high",
+      "scheduled_time": "2025-12-11T13:30:00Z"
+    }
+  ]
+}
+```
+
+#### 3. Quick Trading Safety Check
+
+Get a quick yes/no answer on whether it's safe to trade a pair.
+
+```http
+GET /api/v1/economic-calendar/risk-check
+  ?symbol=EURUSD
+  &minutes_ahead=120
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+- `symbol` (string, required): Trading pair (e.g., `EURUSD`)
+- `minutes_ahead` (integer, 1-1440, default 60): Look ahead N minutes
+
+**Response** (200):
+```json
+{
+  "symbol": "EURUSD",
+  "safe_to_trade": false,
+  "reason": "High-impact ECB decision in next 2 hours",
+  "events_count": 1,
+  "events": [
+    {
+      "name": "ECB Interest Rate Decision",
+      "impact": "high",
+      "minutes_until": 95
+    }
+  ]
+}
+```
+
+### Major Economic Indicators Tracked
+
+| Event | Currency | Impact | Typical Release Time |
+|-------|----------|--------|----------------------|
+| **Non-Farm Payroll (NFP)** | USD | HIGH | 1st Friday, 13:30 UTC |
+| **CPI (Inflation)** | USD | HIGH | Mid-month, 13:30 UTC |
+| **ECB Interest Rate** | EUR | HIGH | 6 weeks, 13:45 UTC |
+| **Fed Interest Rate** | USD | HIGH | ~8 weeks, 18:00 UTC |
+| **PMI (Manufacturing)** | Multiple | HIGH | End of month, morning |
+| **Retail Sales** | Multiple | MEDIUM | Monthly, morning |
+| **Unemployment Rate** | Multiple | MEDIUM | Monthly, 13:30 UTC |
+| **GDP (Preliminary)** | Multiple | MEDIUM | Quarterly |
+
+### Integration with Brain Service
+
+To avoid trading during high-impact events, integrate the Economic Calendar into your Brain service:
+
+```python
+from app.services.economic_calendar import EconomicCalendar
+
+calendar = EconomicCalendar(api_key=settings.trading_economics_key)
+
+# Before making a decision
+should_avoid = calendar.should_avoid_trading(symbol="EURUSD", minutes_window=120)
+
+if should_avoid:
+    # Return HOLD instead of BUY/SELL
+    return {"decision": "HOLD", "reason": "High-impact event scheduled"}
+
+# Otherwise, proceed with normal analysis
+# ...
+```
+
+### Caching
+
+The service caches events for **60 minutes** to minimize API calls:
+
+```python
+calendar = EconomicCalendar(api_key=settings.trading_economics_key)
+
+# First call → fetches from API (or mock)
+events = await calendar.fetch_upcoming_events(hours_ahead=168)
+
+# Subsequent calls within 60 minutes → uses cache
+events = await calendar.fetch_upcoming_events(hours_ahead=168)
+```
+
+---
+
 ## Database & Migrations
 
 ### Architecture
