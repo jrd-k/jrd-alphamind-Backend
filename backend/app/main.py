@@ -28,11 +28,12 @@ def create_app() -> FastAPI:
     app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["accounts"])
     app.include_router(websockets.router, tags=["websockets"])
     # orchestrator and indicators
-    from app.api.v1 import orchestrator, indicators, brain, webhook
+    from app.api.v1 import orchestrator, indicators, brain, webhook, economic_calendar
 
     app.include_router(orchestrator.router, prefix="/api/v1/orchestrator", tags=["orchestrator"])
     app.include_router(indicators.router, prefix="/api/v1/indicators", tags=["indicators"])
     app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
+    app.include_router(economic_calendar.router, prefix="/api/v1", tags=["economic-calendar"])
     # webhook.router already defines prefix "/webhook"; include under /api/v1
     app.include_router(webhook.router, prefix="/api/v1")
 

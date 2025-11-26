@@ -23,6 +23,8 @@ try:
         mt5_path: str = ""
         mt5_account: str = ""
         mt5_password: str = ""
+        # Economic Calendar Configuration (optional)
+        trading_economics_key: str = ""
 
         class Config:
             env_file = ".env"
@@ -71,6 +73,8 @@ except Exception:
             mt5_path: str = ""
             mt5_account: str = ""
             mt5_password: str = ""
+            # Economic Calendar Configuration (optional)
+            trading_economics_key: str = ""
 
             class Config:
                 env_file = ".env"
@@ -108,5 +112,7 @@ except Exception:
             mt5_path: str = os.getenv("MT5_PATH", "")
             mt5_account: str = os.getenv("MT5_ACCOUNT", "")
             mt5_password: str = os.getenv("MT5_PASSWORD", "")
+            # Economic Calendar Configuration (optional)
+            trading_economics_key: str = os.getenv("TRADING_ECONOMICS_KEY", "")
 
         settings = Settings()
