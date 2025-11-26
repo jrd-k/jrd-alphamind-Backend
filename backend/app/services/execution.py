@@ -8,6 +8,7 @@ from app.models.orm_models import Trade
 from app.services.brokers.exness_client import ExnessClient
 from app.services.brokers.paper_client import PaperTradingClient
 from app.services.brokers.justmarkets_client import JustMarketsClient
+from app.services.brokers.mt5_client import MT5Client
 
 try:
     import redis.asyncio as redis_async
@@ -22,6 +23,12 @@ async def get_broker_client():
         return ExnessClient()
     elif broker == "justmarkets":
         return JustMarketsClient()
+    elif broker == "mt5":
+        return MT5Client(
+            mt5_path=os.getenv("MT5_PATH"),
+            account=os.getenv("MT5_ACCOUNT"),
+            password=os.getenv("MT5_PASSWORD")
+        )
     return PaperTradingClient()
 
 

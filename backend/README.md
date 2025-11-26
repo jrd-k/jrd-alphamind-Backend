@@ -46,7 +46,7 @@ The system is designed to be:
 | Feature | Status | Details |
 |---------|--------|---------|
 | **User Authentication** | ✅ | JWT-based register/login with Argon2 hashing |
-| **Broker Integration** | ✅ | Paper (default), Exness, JustMarkets (extensible) |
+| **Broker Integration** | ✅ | Paper (default), Exness, JustMarkets, MT5 (extensible) |
 | **Order Management** | ✅ | Submit, list, track, retrieve status |
 | **Trade Persistence** | ✅ | Full trade history (SQLAlchemy ORM + Alembic migrations) |
 | **Account Management** | ✅ | Balance, open positions, account info |
@@ -694,6 +694,82 @@ JUSTMARKETS_API_KEY=your_api_key_here
 JUSTMARKETS_BASE_URL=https://api.justmarkets-demo.com
 ```
 
+### MetaTrader 5 (MT5) Integration
+
+**Direct connection to MT5 terminal** (demo or live accounts) for direct order execution.
+
+#### 1. Prerequisites
+
+- MetaTrader 5 terminal installed and running
+- Python package: Install via `pip install MetaTrader5`
+
+#### 2. Configure .env
+
+```bash
+# Choose MT5 as broker
+BROKER=mt5
+
+# MT5 Configuration (all optional)
+# MT5_PATH: Path to MT5 terminal executable (auto-detect if not specified)
+MT5_PATH=C:\Program Files\MetaTrader 5\terminal.exe
+
+# MT5_ACCOUNT: Account number/login
+MT5_ACCOUNT=1234567
+
+# MT5_PASSWORD: Account password
+MT5_PASSWORD=your_mt5_password
+```
+
+#### 3. Start MT5 Terminal
+
+- Open MetaTrader 5
+- Log in to your account (demo or live)
+- Keep the terminal running (the backend will connect to it)
+
+#### 4. Install MetaTrader5 Package
+
+```bash
+pip install MetaTrader5
+```
+
+#### 5. Submit Orders
+
+```bash
+curl -X POST http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"EURUSD","quantity":0.1}'
+
+# Order routed to MT5; executed directly on the terminal's account
+```
+
+#### MT5 Features
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Order Placement | ✅ | Market and limit orders |
+| Account Info | ✅ | Balance, equity, margin, leverage |
+| Open Positions | ✅ | Query all active positions |
+| Order History | ⏳ | Can be added if needed |
+| Stop-Loss/Take-Profit | ⏳ | Manual implementation required |
+
+#### MT5 Troubleshooting
+
+**"MT5 not connected" error:**
+- Ensure MetaTrader 5 terminal is running
+- Check that the terminal is logged in
+- Verify `MT5_ACCOUNT` and `MT5_PASSWORD` match the logged-in account
+
+**"Symbol not found" error:**
+- Symbol must exist in the MT5 terminal
+- Check symbol format (e.g., `EURUSD` not `EUR/USD`)
+- Add symbol to Market Watch if missing
+
+**Connection issues on non-Windows:**
+- MT5 Python package requires Windows
+- Consider using WSL 2 or Wine on macOS/Linux
+- Or use Exness/JustMarkets integrations instead
+
 ### Adding a New Broker
 
 1. Create `app/services/brokers/mybroker_client.py`:
@@ -705,17 +781,20 @@ JUSTMARKETS_BASE_URL=https://api.justmarkets-demo.com
            self.api_key = api_key
            self.base_url = base_url
 
-       async def submit_order(self, order: Order) -> OrderResponse:
+       async def place_order(self, symbol: str, side: str, qty: float, price: Optional[float] = None, order_type: str = "market") -> Dict[str, Any]:
            # Call MyBroker API
            pass
 
-       async def get_balance(self) -> AccountBalance:
+       async def get_balance(self) -> Dict[str, Any]:
+           pass
+
+       async def get_positions(self) -> List[Dict[str, Any]]:
            pass
    ```
 
 2. Register in `app/services/execution.py`:
    ```python
-   if broker_type == "mybroker":
+   elif broker == "mybroker":
        return MyBrokerClient(api_key, base_url)
    ```
 

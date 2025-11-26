@@ -19,6 +19,10 @@ try:
         scheduler_auto_execute: bool = False
         # CORS: comma-separated list of allowed frontend origins
         frontend_origins: str = "http://localhost:3000,http://localhost:5173"
+        # MT5 Configuration (optional)
+        mt5_path: str = ""
+        mt5_account: str = ""
+        mt5_password: str = ""
 
         class Config:
             env_file = ".env"
@@ -63,6 +67,10 @@ except Exception:
             scheduler_auto_execute: bool = False
             # CORS: comma-separated list of allowed frontend origins
             frontend_origins: str = "http://localhost:3000,http://localhost:5173"
+            # MT5 Configuration (optional)
+            mt5_path: str = ""
+            mt5_account: str = ""
+            mt5_password: str = ""
 
             class Config:
                 env_file = ".env"
@@ -96,5 +104,9 @@ except Exception:
             scheduler_auto_execute: bool = os.getenv("SCHEDULER_AUTO_EXECUTE", "False").lower() in ("1", "true", "yes")
             # CORS: comma-separated list of allowed frontend origins
             frontend_origins: str = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000,http://localhost:5173")
+            # MT5 Configuration (optional)
+            mt5_path: str = os.getenv("MT5_PATH", "")
+            mt5_account: str = os.getenv("MT5_ACCOUNT", "")
+            mt5_password: str = os.getenv("MT5_PASSWORD", "")
 
         settings = Settings()
