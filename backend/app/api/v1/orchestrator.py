@@ -65,6 +65,12 @@ class TradeAnalysisRequest(BaseModel):
     existing_positions: Optional[List[Dict[str, Any]]] = Field(
         None, description="Current open positions for correlation check"
     )
+    pending_positions: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Pending positions to consider in the same request"
+    )
+    requested_qty: Optional[float] = Field(
+        None, description="Explicit lot size to use (overrides sizing calculations)"
+    )
 
 
 class TradeExecutionRequest(TradeAnalysisRequest):
@@ -131,6 +137,8 @@ async def analyze_trade(
             risk_percent=request.risk_percent,
             leverage=request.leverage,
             existing_positions=request.existing_positions,
+            pending_positions=request.pending_positions,
+            requested_qty=request.requested_qty,
         )
         return TradeAnalysisResponse(**result)
     except Exception as e:
@@ -206,6 +214,8 @@ async def execute_trade(
             risk_percent=request.risk_percent,
             leverage=request.leverage,
             existing_positions=request.existing_positions,
+            pending_positions=request.pending_positions,
+            requested_qty=request.requested_qty,
             user_id=current_user.id,
             auto_execute=request.auto_execute,
         )

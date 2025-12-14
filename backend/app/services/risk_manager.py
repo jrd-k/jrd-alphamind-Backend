@@ -100,7 +100,8 @@ class RiskManager:
         qty: float,
         entry_price: float,
         stop_loss_price: float,
-        current_positions: List[Dict[str, Any]],
+        current_positions: Optional[List[Dict[str, Any]]] = None,
+        pending_positions: Optional[List[Dict[str, Any]]] = None,
         current_equity: Optional[float] = None,
         margin_available: Optional[float] = None,
     ) -> List[RiskCheckResult]:
@@ -133,10 +134,16 @@ class RiskManager:
                 )
             )
 
-        # 5. Correlation check
+        # 5. Correlation check (include pending positions if provided)
+        combined_positions = []
         if current_positions:
+            combined_positions.extend(current_positions)
+        if pending_positions:
+            combined_positions.extend(pending_positions)
+
+        if combined_positions:
             results.append(
-                self.check_correlation(symbol, current_positions)
+                self.check_correlation(symbol, combined_positions)
             )
 
         # 6. Stop-loss validity check

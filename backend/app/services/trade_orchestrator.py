@@ -39,6 +39,8 @@ class TradeOrchestrator:
         risk_percent: float = 2.0,
         leverage: int = 1,
         existing_positions: Optional[List[Dict[str, Any]]] = None,
+        pending_positions: Optional[List[Dict[str, Any]]] = None,
+        requested_qty: Optional[float] = None,
         user_id: Optional[int] = None,
         auto_execute: bool = False,
     ) -> Dict[str, Any]:
@@ -120,7 +122,7 @@ class TradeOrchestrator:
             logger.info(f"[{symbol}] Step 2: Calculating position size...")
             try:
                 sizer = PositionSizer(
-                    account_balance=account_balance,
+                    account_balance=account_balance or 0.0,
                     leverage=leverage,
                     risk_strategy=RiskStrategy[risk_strategy.upper()],
                     risk_percent=risk_percent,
@@ -130,12 +132,28 @@ class TradeOrchestrator:
                     result["warnings"].append("Stop-loss not provided, using default 50 pips")
                     stop_loss_pips = 50
 
-                size_result = sizer.calculate_lot_size(
-                    symbol=symbol,
-                    stop_loss_pips=stop_loss_pips,
-                    current_price=current_price or 1.0,
-                )
-                lot_size = size_result.get("lot_size", 0.0)
+                # If caller provided an explicit requested_qty, use that instead of sizing
+                # (the orders endpoint will pass requested_qty when user supplies quantity)
+                if requested_qty and requested_qty > 0:
+                    lot_size = requested_qty
+                    size_result = {"lot_size": lot_size}
+                else:
+                    size_result = sizer.calculate_lot_size(
+                        symbol=symbol,
+                        stop_loss_pips=stop_loss_pips,
+                        current_price=current_price or 1.0,
+                    )
+                    lot_size = size_result.get("lot_size", 0.0)
+
+                # Leverage safety: warn when leverage is high and scale down sizing for safety
+                if leverage and leverage > 20 and lot_size:
+                    result["warnings"].append(
+                        f"High leverage ({leverage}x) detected — limiting effective sizing to 20x equivalent"
+                    )
+                    # scale factor to reduce risk when leverage > 20
+                    scale = 20.0 / float(leverage)
+                    lot_size = round(float(lot_size) * scale, 5)
+                    size_result["lot_size"] = lot_size
 
                 result["workflow"]["position_sizing"] = {
                     "lot_size": lot_size,
