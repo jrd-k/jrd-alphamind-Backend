@@ -40,18 +40,16 @@ class TestTradeOrchestrator:
             assert result["can_execute"] is False
             assert result["lot_size"] == 0.0
 
-    @pytest.mark.asyncio
-    async def test_orchestrate_buy_signal_safe(self, orchestrator):
-        """Test BUY signal with all checks passing."""
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,
@@ -63,7 +61,7 @@ class TestTradeOrchestrator:
             assert result["decision"] == "PROCEED"
             assert result["can_execute"] is True
             assert result["lot_size"] > 0
-            assert result["risk_level"] in ["safe", "warning"]  # Either is acceptable
+            assert result["risk_level"] in ["SAFE", "WARNING"]  # Either is acceptable
 
     @pytest.mark.asyncio
     async def test_orchestrate_sell_signal(self, orchestrator):
@@ -71,12 +69,13 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "SELL",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,
@@ -92,12 +91,13 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,
@@ -113,18 +113,16 @@ class TestTradeOrchestrator:
             assert result["lot_size"] > 0
             assert "position_sizing" in result["workflow"]
 
-    @pytest.mark.asyncio
-    async def test_orchestrate_risk_checks_included(self, orchestrator):
-        """Test that all risk checks are included in workflow."""
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,
@@ -143,6 +141,7 @@ class TestTradeOrchestrator:
             with patch("app.services.trade_orchestrator.execute_order") as mock_exec:
                 mock_decide.return_value = {
                     "decision": "BUY",
+                    "confidence": 0.8,  # Above minimum threshold
                     "indicator": {},
                     "deepseek": None,
                     "openai": None,
@@ -171,12 +170,13 @@ class TestTradeOrchestrator:
             ) as mock_exec:
                 mock_decide.return_value = {
                     "decision": "BUY",
+                    "confidence": 0.8,  # Above minimum threshold
                     "indicator": {},
                     "deepseek": None,
                     "openai": None,
                 }
 
-                result = await orchestrator.analyze_trade(
+                result = await orchestrator.orchestrate_trade(
                     symbol="EURUSD",
                     current_price=1.0835,
                     account_balance=10000,
@@ -194,7 +194,7 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.side_effect = Exception("Brain service error")
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,
@@ -209,13 +209,14 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
             # Test with small account and high risk - should be risky
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=500,  # Very small account
@@ -224,7 +225,7 @@ class TestTradeOrchestrator:
             )
 
             # Should either reject or show warnings
-            assert result["risk_level"] in ["warning", "critical"] or not result["can_execute"]
+            assert result["risk_level"] in ["WARNING", "CRITICAL"] or not result["can_execute"]
 
     @pytest.mark.asyncio
     async def test_orchestrate_with_default_stop_loss(self, orchestrator):
@@ -232,12 +233,13 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,  # Above minimum threshold
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
             }
 
-            result = await orchestrator.analyze_trade(
+            result = await orchestrator.orchestrate_trade(
                 symbol="EURUSD",
                 current_price=1.0835,
                 account_balance=10000,

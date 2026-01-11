@@ -71,6 +71,7 @@ class BrainDecision(Base):
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String, index=True, nullable=False)
     decision = Column(String, nullable=False)
+    confidence = Column(Float, nullable=True, default=0.0)
     indicator = Column(JSON, nullable=True)
     deepseek = Column(JSON, nullable=True)
     openai = Column(JSON, nullable=True)

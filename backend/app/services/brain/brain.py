@@ -20,6 +20,11 @@ try:
 except Exception:  # pragma: no cover - optional
     OpenAIClient = None  # type: ignore
 
+try:
+    from app.services.ml import MLTradingService
+except Exception:  # pragma: no cover - optional
+    MLTradingService = None  # type: ignore
+
 
 class Brain:
     """Compose indicator signals and optional AI signals into a trade decision.
@@ -34,6 +39,8 @@ class Brain:
     def __init__(self):
         self.deepseek = None
         self.openai = None
+        self.ml_service = None
+        
         if DeepSeekClient and settings.deepseek_api_key:
             try:
                 self.deepseek = DeepSeekClient()
@@ -45,6 +52,15 @@ class Brain:
                 self.openai = OpenAIClient()
             except Exception as e:
                 logger.warning("OpenAI client not initialized: %s", e)
+
+        if MLTradingService:
+            try:
+                self.ml_service = MLTradingService()
+                # Load any existing models
+                import asyncio
+                asyncio.create_task(self.ml_service.load_models())
+            except Exception as e:
+                logger.warning("ML service not initialized: %s", e)
 
     async def decide(
         self,
@@ -90,7 +106,7 @@ class Brain:
             summary = fib.get("summary", "")
             indicator_signal = fib.get("signals", "HOLD")
 
-        decision = {"symbol": symbol, "indicator": fib, "deepseek": None, "openai": None, "decision": "HOLD"}
+        decision = {"symbol": symbol, "indicator": fib, "deepseek": None, "openai": None, "ml": None, "decision": "HOLD"}
 
         # Enrich with DeepSeek if available
         if self.deepseek:
@@ -113,7 +129,43 @@ class Brain:
             except Exception as e:
                 logger.warning("OpenAI chat failed: %s", e)
 
-        # Fusion logic: confidence-weighted voting between indicator, DeepSeek, and OpenAI
+        # Get ML prediction if available
+        if self.ml_service:
+            try:
+                # Prepare features for ML prediction
+                ml_features = {}
+                
+                # Add current price and basic features
+                if current_price:
+                    ml_features['close'] = current_price
+                
+                # Add indicator data
+                if indicators:
+                    for ind in indicators:
+                        if 'value' in ind:
+                            # Use indicator name as feature key
+                            feature_key = ind.get('name', ind.get('source', 'unknown')).lower().replace(' ', '_')
+                            ml_features[feature_key] = ind['value']
+                
+                # Add candle data if available
+                if candles:
+                    if candles and len(candles) > 0:
+                        latest_candle = candles[-1]
+                        ml_features.update({
+                            'open': latest_candle.get('open', current_price),
+                            'high': latest_candle.get('high', current_price),
+                            'low': latest_candle.get('low', current_price),
+                            'close': latest_candle.get('close', current_price),
+                            'volume': latest_candle.get('volume', 0)
+                        })
+                
+                if ml_features:
+                    ml_prediction = await self.ml_service.predict(symbol, ml_features)
+                    decision["ml"] = ml_prediction
+            except Exception as e:
+                logger.warning("ML prediction failed: %s", e)
+
+        # Fusion logic: confidence-weighted voting between indicator, DeepSeek, OpenAI, and ML
         # Map signals to numeric scores: BUY=1, SELL=-1, HOLD=0
         def sig_to_score(s: Any) -> float:
             if not s:
@@ -126,9 +178,10 @@ class Brain:
             return 0.0
 
         # base confidences (tunable)
-        conf_indicator = 0.6
+        conf_indicator = 0.4
         conf_deepseek = 0.1
-        conf_openai = 0.3
+        conf_openai = 0.2
+        conf_ml = 0.3
 
         total_weight = 0.0
         score = 0.0
@@ -179,18 +232,41 @@ class Brain:
         except Exception:
             pass
 
+        # ML contribution: use prediction confidence
+        try:
+            if decision.get("ml") and decision["ml"].get("prediction") is not None:
+                ml_data = decision["ml"]
+                ml_confidence = ml_data.get("confidence", 0.0)
+                
+                # Convert prediction to score
+                ml_score = 1.0 if ml_data.get("prediction", 0) == 1 else -1.0
+                
+                # Weight by ML confidence
+                score += ml_score * conf_ml * ml_confidence
+                total_weight += conf_ml * ml_confidence
+        except Exception:
+            pass
+
         # Final decision based on weighted average
         final = "HOLD"
+        confidence = 0.0
         if total_weight > 0:
             avg = score / total_weight
-            if avg >= 0.4:
-                final = "BUY"
-            elif avg <= -0.4:
-                final = "SELL"
+            confidence = abs(avg)  # confidence is the absolute value of the score
+            
+            # Only make BUY/SELL decisions if confidence is above minimum threshold
+            if confidence >= settings.brain_min_confidence:
+                if avg >= 0.4:
+                    final = "BUY"
+                elif avg <= -0.4:
+                    final = "SELL"
+                else:
+                    final = "HOLD"
             else:
-                final = "HOLD"
+                final = "HOLD"  # Not confident enough
 
         decision["decision"] = final
+        decision["confidence"] = confidence
 
         # Persist decision to Redis and DB (best-effort, do not fail on error)
         try:

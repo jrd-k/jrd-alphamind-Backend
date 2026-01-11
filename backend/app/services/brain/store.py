@@ -65,6 +65,7 @@ async def save_decision_db(decision: dict) -> None:
                 bd = BrainDecision(
                     symbol=decision.get("symbol"),
                     decision=decision.get("decision"),
+                    confidence=decision.get("confidence", 0.0),
                     indicator=decision.get("indicator"),
                     deepseek=decision.get("deepseek"),
                     openai=decision.get("openai"),

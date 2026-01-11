@@ -71,6 +71,9 @@ class TradeAnalysisRequest(BaseModel):
     requested_qty: Optional[float] = Field(
         None, description="Explicit lot size to use (overrides sizing calculations)"
     )
+    order_id: Optional[str] = Field(
+        None, description="Order ID to associate with the trade"
+    )
 
 
 class TradeExecutionRequest(TradeAnalysisRequest):
@@ -139,6 +142,7 @@ async def analyze_trade(
             existing_positions=request.existing_positions,
             pending_positions=request.pending_positions,
             requested_qty=request.requested_qty,
+            order_id=request.order_id,
         )
         return TradeAnalysisResponse(**result)
     except Exception as e:
@@ -216,6 +220,7 @@ async def execute_trade(
             existing_positions=request.existing_positions,
             pending_positions=request.pending_positions,
             requested_qty=request.requested_qty,
+            order_id=request.order_id,
             user_id=current_user.id,
             auto_execute=request.auto_execute,
         )

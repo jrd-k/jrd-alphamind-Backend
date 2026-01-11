@@ -53,7 +53,12 @@ class TestFullUserWorkflow:
         # 3. Submit an order with JWT
         order_resp = client.post(
             "/api/v1/orders/",
-            json={"symbol": "EURUSD", "quantity": 1.0},
+            json={
+                "symbol": "EURUSD", 
+                "quantity": 1.0, 
+                "current_price": 1.0835,
+                "indicators": [{"source": "test", "signal": "BUY", "value": 1.0}]
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert order_resp.status_code == 200
@@ -94,7 +99,7 @@ class TestFullUserWorkflow:
         for symbol in symbols:
             resp = client.post(
                 "/api/v1/orders/",
-                json={"symbol": symbol, "quantity": 1.0},
+                json={"symbol": symbol, "quantity": 1.0, "current_price": 1.0835, "indicators": [{"source": "test", "signal": "BUY", "value": 1.0}]},
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert resp.status_code == 200
@@ -118,7 +123,7 @@ class TestFullUserWorkflow:
         """Test that submitting order without JWT returns 401/403."""
         resp = client.post(
             "/api/v1/orders/",
-            json={"symbol": "EURUSD", "quantity": 1.0},
+            json={"symbol": "EURUSD", "quantity": 1.0, "current_price": 1.0835},
         )
         assert resp.status_code in (401, 403)
         print("✓ Unauthenticated order submission rejected")
@@ -127,7 +132,7 @@ class TestFullUserWorkflow:
         """Test that invalid token is rejected."""
         resp = client.post(
             "/api/v1/orders/",
-            json={"symbol": "EURUSD", "quantity": 1.0},
+            json={"symbol": "EURUSD", "quantity": 1.0, "current_price": 1.0835},
             headers={"Authorization": "Bearer invalid_token_xyz"},
         )
         assert resp.status_code == 401
@@ -161,7 +166,7 @@ class TestOrderAndTradeFlow:
         for i in range(3):
             client.post(
                 "/api/v1/orders/",
-                json={"symbol": f"SYM{i}", "quantity": float(i+1)},
+                json={"symbol": f"SYM{i}", "quantity": float(i+1), "current_price": 1.0835},
                 headers={"Authorization": f"Bearer {self.token}"},
             )
         
@@ -180,7 +185,7 @@ class TestOrderAndTradeFlow:
         # Submit an order (creates a trade)
         client.post(
             "/api/v1/orders/",
-            json={"symbol": "TESTORD", "quantity": 2.0},
+            json={"symbol": "TESTORD", "quantity": 2.0, "current_price": 1.0835, "indicators": [{"source": "test", "signal": "BUY", "value": 1.0}]},
             headers={"Authorization": f"Bearer {self.token}"},
         )
         
@@ -198,7 +203,7 @@ class TestOrderAndTradeFlow:
         # Submit an order
         submit_resp = client.post(
             "/api/v1/orders/",
-            json={"symbol": "GETTEST", "quantity": 5.0},
+            json={"symbol": "GETTEST", "quantity": 5.0, "current_price": 1.0835},
             headers={"Authorization": f"Bearer {self.token}"},
         )
         order_id = submit_resp.json()["id"]

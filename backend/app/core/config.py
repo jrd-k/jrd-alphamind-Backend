@@ -25,6 +25,8 @@ try:
         mt5_password: str = ""
         # Economic Calendar Configuration (optional)
         trading_economics_key: str = ""
+        # Brain confidence threshold (minimum confidence required for BUY/SELL decisions)
+        brain_min_confidence: float = 0.5
 
         class Config:
             env_file = ".env"
@@ -75,6 +77,8 @@ except Exception:
             mt5_password: str = ""
             # Economic Calendar Configuration (optional)
             trading_economics_key: str = ""
+            # Brain confidence threshold (minimum confidence required for BUY/SELL decisions)
+            brain_min_confidence: float = 0.5
 
             class Config:
                 env_file = ".env"
@@ -114,5 +118,7 @@ except Exception:
             mt5_password: str = os.getenv("MT5_PASSWORD", "")
             # Economic Calendar Configuration (optional)
             trading_economics_key: str = os.getenv("TRADING_ECONOMICS_KEY", "")
+            # Brain confidence threshold (minimum confidence required for BUY/SELL decisions)
+            brain_min_confidence: float = float(os.getenv("BRAIN_MIN_CONFIDENCE", "0.5"))
 
         settings = Settings()

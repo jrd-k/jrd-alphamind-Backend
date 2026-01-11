@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -19,6 +19,9 @@ class UserRead(BaseModel):
 class OrderCreate(BaseModel):
     symbol: str
     quantity: float
+    current_price: float
+    stop_loss_pips: Optional[float] = None
+    indicators: Optional[List[Dict[str, Any]]] = None
 
 
 class OrderRead(BaseModel):

@@ -521,6 +521,7 @@ Authorization: Bearer {token}
       "id": 42,
       "symbol": "EURUSD",
       "decision": "BUY",
+      "confidence": 0.75,
       "indicator": {
         "summary": "...",
         "signals": "STRONG_BUY"
@@ -576,6 +577,19 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 
 **If keys are missing**, the Brain still works with indicators only (no AI enrichment).
 
+#### Confidence Threshold
+
+The Brain enforces a minimum confidence threshold to prevent low-confidence trades. Configure via environment variable:
+
+```bash
+# Minimum confidence required for BUY/SELL decisions (default: 0.5)
+BRAIN_MIN_CONFIDENCE=0.5
+```
+
+- **Range**: 0.0 to 1.0
+- **Behavior**: If confidence < threshold, decision becomes "HOLD"
+- **Purpose**: Risk management - prevents trades with insufficient signal strength
+
 #### Indicator Configuration
 
 Indicators are computed server-side. Key indicators include:
@@ -594,6 +608,7 @@ CREATE TABLE brain_decisions (
   id INTEGER PRIMARY KEY AUTO_INCREMENT,
   symbol VARCHAR(255) NOT NULL,
   decision VARCHAR(50) NOT NULL,     -- 'BUY', 'SELL', 'HOLD'
+  confidence FLOAT DEFAULT 0.0,      -- Confidence score (0.0-1.0)
   indicator JSON,                    -- Full indicator output
   deepseek JSON,                     -- DeepSeek API response
   openai JSON,                       -- OpenAI API response

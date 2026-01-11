@@ -41,6 +41,7 @@ class TradeOrchestrator:
         existing_positions: Optional[List[Dict[str, Any]]] = None,
         pending_positions: Optional[List[Dict[str, Any]]] = None,
         requested_qty: Optional[float] = None,
+        order_id: Optional[str] = None,
         user_id: Optional[int] = None,
         auto_execute: bool = False,
     ) -> Dict[str, Any]:
@@ -108,11 +109,18 @@ class TradeOrchestrator:
                 result["workflow"]["brain_signal"] = brain_signal
                 result["decision"] = brain_signal.get("decision", "HOLD")
 
+                # Check confidence threshold - reject if below minimum
+                confidence = brain_signal.get("confidence", 0.0)
+                if confidence < settings.brain_min_confidence and brain_signal.get("decision") != "HOLD":
+                    result["reasons"].append(f"Brain confidence {confidence:.2f} below minimum threshold {settings.brain_min_confidence}")
+                    result["decision"] = "HOLD"
+                    return result
+
                 if brain_signal.get("decision") == "HOLD":
                     result["reasons"].append("Brain signal is HOLD")
                     return result
 
-                logger.info(f"[{symbol}] Brain signal: {brain_signal['decision']}")
+                logger.info(f"[{symbol}] Brain signal: {brain_signal['decision']} (confidence: {confidence:.2f})")
             except Exception as e:
                 logger.exception(f"[{symbol}] Brain decision failed: {e}")
                 result["reasons"].append(f"Brain decision failed: {e}")
@@ -253,7 +261,7 @@ class TradeOrchestrator:
                         "side": side,
                         "qty": lot_size,
                         "price": 0.0,  # Market order
-                        "order_id": None,
+                        "order_id": order_id,
                         "user_id": user_id,
                         "metadata": {
                             "orchestrated": True,
@@ -300,6 +308,9 @@ class TradeOrchestrator:
         risk_percent: float = 2.0,
         leverage: int = 1,
         existing_positions: Optional[List[Dict[str, Any]]] = None,
+        pending_positions: Optional[List[Dict[str, Any]]] = None,
+        requested_qty: Optional[float] = None,
+        order_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Analyze trade WITHOUT executing (auto_execute=False)."""
         return await self.orchestrate_trade(
@@ -313,6 +324,9 @@ class TradeOrchestrator:
             risk_percent=risk_percent,
             leverage=leverage,
             existing_positions=existing_positions,
+            pending_positions=pending_positions,
+            requested_qty=requested_qty,
+            order_id=order_id,
             user_id=None,
             auto_execute=False,
         )

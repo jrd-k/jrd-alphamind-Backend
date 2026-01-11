@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets
+from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets, ml
 from app.core.database import init_db
 from app.core.config import settings
 
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(instruments.router, prefix="/api/v1/instruments", tags=["instruments"])
     app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["accounts"])
     app.include_router(websockets.router, tags=["websockets"])
+    app.include_router(ml.router, prefix="/api/v1/ml", tags=["ml"])
     # orchestrator and indicators
     from app.api.v1 import orchestrator, indicators, brain, webhook, economic_calendar, position_sizing, risk_management
 
@@ -44,31 +45,31 @@ def create_app() -> FastAPI:
     def on_startup():
         import asyncio
         import logging
-        from app.workers.scheduler import get_scheduler
+        # from app.workers.scheduler import get_scheduler
 
         logger = logging.getLogger(__name__)
         init_db()
         
         # Start scheduler
-        scheduler = get_scheduler()
-        if scheduler.enabled:
-            loop = asyncio.get_event_loop()
-            task = loop.create_task(scheduler.start())
-            logger.info("Scheduler task created")
+        # scheduler = get_scheduler()
+        # if scheduler.enabled:
+        #     loop = asyncio.get_event_loop()
+        #     task = loop.create_task(scheduler.start())
+        #     logger.info("Scheduler task created")
 
     @app.on_event("shutdown")
     def on_shutdown():
         import asyncio
         import logging
-        from app.workers.scheduler import get_scheduler
+        # from app.workers.scheduler import get_scheduler
 
         logger = logging.getLogger(__name__)
-        scheduler = get_scheduler()
-        try:
-            asyncio.run(scheduler.stop())
-            logger.info("Scheduler stopped on shutdown")
-        except Exception as e:
-            logger.error(f"Error stopping scheduler: {e}")
+        # scheduler = get_scheduler()
+        # try:
+        #     asyncio.run(scheduler.stop())
+        #     logger.info("Scheduler stopped on shutdown")
+        # except Exception as e:
+        #     logger.error(f"Error stopping scheduler: {e}")
 
     return app
 
