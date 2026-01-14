@@ -4,9 +4,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 from datetime import datetime
+import logging
 
 from app.services.ml import MLTradingService, MLDataLoader
 from app.core.security import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ml"])
 
@@ -15,6 +18,7 @@ class MLTrainingRequest(BaseModel):
     symbol: str
     days: int = 365
     force_retrain: bool = False
+    model_type: str = "xgboost"  # "xgboost" or "lightgbm"
 
 
 class MLPredictionRequest(BaseModel):
@@ -67,13 +71,14 @@ async def train_ml_model(
             ml_service.train_model,
             historical_data,
             request.symbol,
-            request.force_retrain
+            request.force_retrain,
+            request.model_type
         )
 
         return MLTrainingResponse(
             symbol=request.symbol,
             status="training_started",
-            message=f"Training started for {request.symbol} with {len(historical_data)} data points"
+            message=f"Training {request.model_type} model started for {request.symbol} with {len(historical_data)} data points"
         )
 
     except Exception as e:
@@ -202,6 +207,67 @@ async def stop_live_trading(current_user=Depends(get_current_user)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stop trading failed: {str(e)}")
+
+
+@router.post("/compare-models")
+async def compare_model_types(
+    request: MLTrainingRequest,
+    current_user=Depends(get_current_user)
+):
+    """Compare XGBoost vs LightGBM performance for a symbol."""
+    try:
+        # Load historical data
+        historical_data = await data_loader.generate_sample_data(
+            symbol=request.symbol,
+            timeframe='H1',
+            days=request.days
+        )
+
+        if historical_data.empty:
+            raise HTTPException(status_code=400, detail="No historical data available")
+
+        results = {}
+
+        # Train both models
+        for model_type in ['xgboost', 'lightgbm']:
+            try:
+                logger.info(f"Training {model_type} model for comparison...")
+                model_result = await ml_service.train_model(
+                    historical_data,
+                    request.symbol,
+                    force_retrain=True,
+                    model_type=model_type
+                )
+                results[model_type] = {
+                    'status': 'success',
+                    'f1_score': model_result['training_results']['best_score'],
+                    'training_time': str(datetime.now() - model_result['trained_at']),
+                    'feature_count': model_result['feature_count']
+                }
+            except Exception as e:
+                results[model_type] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
+
+        # Determine winner
+        if results.get('xgboost', {}).get('status') == 'success' and results.get('lightgbm', {}).get('status') == 'success':
+            xgb_score = results['xgboost']['f1_score']
+            lgb_score = results['lightgbm']['f1_score']
+            winner = 'xgboost' if xgb_score > lgb_score else 'lightgbm' if lgb_score > xgb_score else 'tie'
+            results['comparison'] = {
+                'winner': winner,
+                'xgboost_score': xgb_score,
+                'lightgbm_score': lgb_score,
+                'difference': abs(xgb_score - lgb_score)
+            }
+        else:
+            results['comparison'] = {'winner': 'inconclusive', 'reason': 'One or both models failed'}
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Model comparison failed: {str(e)}")
 
 
 @router.get("/models")

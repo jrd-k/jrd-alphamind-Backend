@@ -93,12 +93,14 @@ class MLTradingService:
             'model_dir': 'models',
             'training_data_path': 'data/training_data.csv',
             'live_update_interval': 60,  # seconds
+            'model_type': 'xgboost',  # 'xgboost' or 'lightgbm'
         }
 
     async def train_model(self,
                          historical_data: pd.DataFrame,
                          target_symbol: str = 'EURUSD',
-                         force_retrain: bool = False) -> Dict[str, Any]:
+                         force_retrain: bool = False,
+                         model_type: str = None) -> Dict[str, Any]:
         """
         Train ML model on historical data.
 
@@ -106,12 +108,16 @@ class MLTradingService:
             historical_data: OHLCV DataFrame with historical data
             target_symbol: Target trading symbol
             force_retrain: Force retraining even if model exists
+            model_type: Type of model to train ('xgboost' or 'lightgbm')
 
         Returns:
             Training results dictionary
         """
         try:
-            logger.info(f"Starting model training for {target_symbol}")
+            # Use provided model_type or config default
+            model_type = model_type or self.config.get('model_type', 'xgboost')
+            
+            logger.info(f"Starting model training for {target_symbol} using {model_type}")
 
             # Check if model already exists
             if not force_retrain and target_symbol in self.trained_models:
@@ -120,7 +126,7 @@ class MLTradingService:
 
             # Step 1: Feature Engineering
             logger.info("Generating features...")
-            featured_data = self.feature_engineer.create_features(historical_data)
+            featured_data = self.feature_engineer.create_features(historical_data, target_symbol)
 
             # Step 2: Label Generation
             logger.info("Generating labels...")
@@ -138,11 +144,12 @@ class MLTradingService:
             self.feature_columns = feature_cols
 
             # Step 4: Train model
-            logger.info(f"Training model with {len(feature_cols)} features...")
+            logger.info(f"Training {model_type} model with {len(feature_cols)} features...")
             training_results = self.model_trainer.train_walk_forward(
                 df=labeled_data,
                 feature_cols=feature_cols,
-                label_col='label_binary'
+                label_col='label_binary',
+                model_type=model_type
             )
 
             # Step 5: Validate model
@@ -168,7 +175,8 @@ class MLTradingService:
                 'feature_columns': feature_cols,
                 'trained_at': datetime.now(),
                 'data_points': len(labeled_data),
-                'feature_count': len(feature_cols)
+                'feature_count': len(feature_cols),
+                'model_type': model_type
             }
 
             self.trained_models[target_symbol] = model_info
@@ -176,7 +184,7 @@ class MLTradingService:
             # Save model info
             self._save_model_info(model_info)
 
-            logger.info(f"Model training completed for {target_symbol}")
+            logger.info(f"{model_type} model training completed for {target_symbol}")
             return model_info
 
         except Exception as e:
@@ -277,19 +285,20 @@ class MLTradingService:
                 return None
 
             model_info = self.trained_models[symbol]
+            model_type = model_info.get('model_type', 'xgboost')
 
             # Load the best model
-            model_name = f"best_model_{model_info['trained_at'].strftime('%Y%m%d_%H%M%S')}"
+            model_name = f"{model_type}_best_model_{model_info['trained_at'].strftime('%Y%m%d_%H%M%S')}"
             try:
                 model = self.model_trainer.load_model(model_name)
             except FileNotFoundError:
-                # Try to find any model file for this symbol
+                # Try to find any model file for this symbol and type
                 model_files = [f for f in os.listdir(self.config['model_dir'])
-                              if f.startswith('best_model_') and f.endswith('.joblib')]
+                              if f.startswith(f'{model_type}_best_model_') and f.endswith('.joblib')]
                 if model_files:
                     model = self.model_trainer.load_model(model_files[0].replace('.joblib', ''))
                 else:
-                    logger.error(f"No model file found for {symbol}")
+                    logger.error(f"No {model_type} model file found for {symbol}")
                     return None
 
             # Prepare features DataFrame
@@ -305,12 +314,13 @@ class MLTradingService:
                     feature_df[feature] = 0.0
 
             # Make prediction
-            prediction_result = self.model_trainer.predict(model, feature_df[required_features])
+            prediction_result = self.model_trainer.predict(model, feature_df[required_features], model_type)
 
             # Add metadata
             prediction_result.update({
                 'symbol': symbol,
                 'model_version': model_info['trained_at'].isoformat(),
+                'model_type': model_type,
                 'feature_count': len(required_features),
                 'timestamp': datetime.now().isoformat()
             })
