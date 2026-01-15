@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets, ml
+from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets, ml, general
 from app.core.database import init_db
 from app.core.config import settings
 
@@ -20,14 +20,18 @@ def create_app() -> FastAPI:
 
     # include routers
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(auth.router, prefix="/api/auth", tags=["auth"])  # Frontend compatibility
     app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
+    app.include_router(users.router, prefix="/api/user", tags=["users"])  # Frontend compatibility
     app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
     app.include_router(marketdata.router, prefix="/api/v1/marketdata", tags=["marketdata"])
+    app.include_router(marketdata.router, prefix="/api/stocks", tags=["marketdata"])  # Frontend compatibility
     app.include_router(trades.router, prefix="/api/v1/trades", tags=["trades"])
     app.include_router(instruments.router, prefix="/api/v1/instruments", tags=["instruments"])
     app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["accounts"])
     app.include_router(websockets.router, tags=["websockets"])
     app.include_router(ml.router, prefix="/api/v1/ml", tags=["ml"])
+    app.include_router(general.router, prefix="/api", tags=["general"])  # Root API level
     # orchestrator and indicators
     from app.api.v1 import orchestrator, indicators, brain, webhook, economic_calendar, position_sizing, risk_management
 
