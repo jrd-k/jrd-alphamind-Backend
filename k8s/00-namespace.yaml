@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alphamind
+  labels:
+    istio-injection: enabled  # Optional: for service mesh
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alphamind-config
+  namespace: alphamind
+data:
+  BROKER: "paper"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXP_MINUTES: "60"
+  LOG_LEVEL: "INFO"
+  FRONTEND_ORIGINS: "https://your-app.lovable.app,https://alphamind.yourdomain.com"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alphamind-secrets
+  namespace: alphamind
+type: Opaque
+stringData:
+  JWT_SECRET: "<generate-with-openssl-rand-base64-32>"
+  DATABASE_URL: "postgresql://alphamind:${DB_PASSWORD}@postgres:5432/alphamind"
+  REDIS_URL: "redis://redis:6379/0"
+  DEEPSEEK_API_KEY: ""
+  OPENAI_API_KEY: ""
+  EXNESS_API_KEY: ""
