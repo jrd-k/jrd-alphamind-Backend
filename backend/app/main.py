@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets, ml, general
 from app.api.v1 import orchestrator, indicators, brain, webhook, economic_calendar, position_sizing, risk_management
-from app.api.v1 import broker_accounts
+from app.api.v1 import broker_accounts, websockets_secure
 from app.core.database import init_db
 from app.core.config import settings
 
@@ -39,6 +39,10 @@ def create_app() -> FastAPI:
     app.include_router(broker_accounts.router, prefix="/api/v1", tags=["broker-accounts"])
     # webhook.router already defines prefix "/webhook"; include under /api/v1
     app.include_router(webhook.router, prefix="/api/v1")
+
+    # Secure WebSocket endpoints
+    app.websocket("/ws/trades")(websockets_secure.websocket_trades)
+    app.websocket("/ws/market-data")(websockets_secure.websocket_market_data)
 
     # initialize DB in dev
     @app.on_event("startup")

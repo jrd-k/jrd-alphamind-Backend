@@ -1,0 +1,151 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: alphamind
+spec:
+  schedule: "0 2 * * *"  # 2am UTC daily
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-sa
+          containers:
+          - name: postgres-backup
+            image: postgres:15-alpine
+            command: 
+              - /bin/sh
+              - -c
+              - |
+                set -e
+                DATE=$(date +"%Y%m%d_%H%M")
+                DUMP_FILE="/backup/postgres_$DATE.dump"
+                
+                echo "Starting PostgreSQL backup..."
+                pg_dump --host=postgres-0.postgres-headless.alphamind.svc.cluster.local \
+                        --username=postgres \
+                        --format=custom \
+                        --compress=9 \
+                        --file=$DUMP_FILE \
+                        alphamind
+                
+                echo "Backup complete: $DUMP_FILE"
+                ls -lh $DUMP_FILE
+                
+                # Optional: upload to S3
+                # aws s3 cp $DUMP_FILE s3://my-backup-bucket/postgres/
+                
+                # Cleanup old backups (keep last 7 days)
+                find /backup -name "postgres_*.dump" -mtime +7 -delete
+            env:
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-credentials
+                    key: password
+            volumeMounts:
+              - name: backup-storage
+                mountPath: /backup
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "256Mi"
+              limits:
+                cpu: "500m"
+                memory: "512Mi"
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-data
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: alphamind
+spec:
+  schedule: "0 3 * * *"  # 3am UTC daily (after postgres backup)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-sa
+          containers:
+          - name: redis-backup
+            image: redis:7-alpine
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -e
+                DATE=$(date +"%Y%m%d_%H%M")
+                
+                echo "Starting Redis backup..."
+                redis-cli -h redis BGSAVE
+                
+                # Wait for save to complete
+                while [ "$(redis-cli -h redis LASTSAVE)" = "$(redis-cli -h redis LASTSAVE)" ]; do
+                  sleep 1
+                done
+                
+                # Copy dump file
+                echo "Copying dump file..."
+                redis-cli -h redis --rdb /backup/dump_$DATE.rdb
+                
+                echo "Backup complete: /backup/dump_$DATE.rdb"
+                
+                # Cleanup old backups
+                find /backup -name "dump_*.rdb" -mtime +7 -delete
+            volumeMounts:
+              - name: backup-storage
+                mountPath: /backup
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "300m"
+                memory: "256Mi"
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-data
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-sa
+  namespace: alphamind
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-role
+  namespace: alphamind
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-rolebinding
+  namespace: alphamind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-role
+subjects:
+- kind: ServiceAccount
+  name: backup-sa
+  namespace: alphamind
