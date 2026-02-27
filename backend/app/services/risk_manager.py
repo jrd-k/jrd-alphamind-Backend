@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 class RiskLevel(Enum):
     """Risk severity levels."""
-    SAFE = "safe"           # All checks pass
-    WARNING = "warning"     # Some concern, proceed with caution
-    CRITICAL = "critical"   # Should NOT trade
+    SAFE = "SAFE"           # All checks pass
+    WARNING = "WARNING"     # Some concern, proceed with caution
+    CRITICAL = "CRITICAL"   # Should NOT trade
 
 
 @dataclass

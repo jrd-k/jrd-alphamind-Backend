@@ -15,7 +15,10 @@ from app.core.security import get_current_user
 from app.services.trade_orchestrator import TradeOrchestrator
 
 router = APIRouter()
-orchestrator = TradeOrchestrator()
+
+def get_orchestrator():
+    """Get orchestrator instance - created on demand to avoid import-time issues"""
+    return TradeOrchestrator()
 
 
 class CandleData(BaseModel):
@@ -127,7 +130,7 @@ async def analyze_trade(
     - Detailed reasons and warnings
     """
     try:
-        result = await orchestrator.analyze_trade(
+        result = await get_orchestrator().analyze_trade(
             symbol=request.symbol,
             candles=[c.dict() for c in request.candles] if request.candles else None,
             current_price=request.current_price,
@@ -205,7 +208,7 @@ async def execute_trade(
     ```
     """
     try:
-        result = await orchestrator.orchestrate_trade(
+        result = await get_orchestrator().orchestrate_trade(
             symbol=request.symbol,
             candles=[c.dict() for c in request.candles] if request.candles else None,
             current_price=request.current_price,
@@ -260,7 +263,7 @@ async def quick_analyze(
     ```
     """
     try:
-        result = await orchestrator.analyze_trade(
+        result = await get_orchestrator().analyze_trade(
             symbol=symbol,
             current_price=current_price,
             account_balance=account_balance,

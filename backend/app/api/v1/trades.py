@@ -34,3 +34,25 @@ def create_trade(trade_in: schemas.TradeCreate, db: Session = Depends(get_db)):
 
     # Publishing to Redis is handled by execution service when used by execution path
     return t
+
+
+@router.post("/paper", response_model=schemas.TradeRead, status_code=201)
+def create_paper_trade(trade_in: schemas.TradeCreate, db: Session = Depends(get_db)):
+    """Create a paper (simulated) trade for testing purposes."""
+    # Paper trades are just regular trades but marked as paper
+    trade_data = trade_in.dict()
+    # if timestamp is None, let DB set default
+    if trade_data.get("timestamp") is None:
+        trade_data.pop("timestamp", None)
+    
+    # Add metadata to indicate this is a paper trade
+    if trade_data.get("metadata") is None:
+        trade_data["metadata"] = {}
+    trade_data["metadata"]["paper_trade"] = True
+    
+    t = Trade(**trade_data)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+
+    return t

@@ -16,6 +16,7 @@ from app.services.brain.brain import Brain
 from app.services.position_sizing import PositionSizer, RiskStrategy
 from app.services.risk_manager import RiskManager, RiskLevel
 from app.services.execution import execute_order
+from app.services.economic_calendar import EconomicCalendar
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,11 @@ class TradeOrchestrator:
         result = {
             "symbol": symbol,
             "timestamp": start_time.isoformat(),
-            "workflow": {},
+            "workflow": {
+                "brain_signal": {},
+                "position_sizing": {},
+                "risk_checks": {"checks": [], "overall_level": "SAFE"},
+            },
             "decision": "HOLD",
             "can_execute": False,
             "lot_size": 0.0,
@@ -114,10 +119,14 @@ class TradeOrchestrator:
                 if confidence < settings.brain_min_confidence and brain_signal.get("decision") != "HOLD":
                     result["reasons"].append(f"Brain confidence {confidence:.2f} below minimum threshold {settings.brain_min_confidence}")
                     result["decision"] = "HOLD"
+                    end_time = datetime.now(timezone.utc)
+                    result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
                     return result
 
                 if brain_signal.get("decision") == "HOLD":
                     result["reasons"].append("Brain signal is HOLD")
+                    end_time = datetime.now(timezone.utc)
+                    result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
                     return result
 
                 logger.info(f"[{symbol}] Brain signal: {brain_signal['decision']} (confidence: {confidence:.2f})")
@@ -176,6 +185,8 @@ class TradeOrchestrator:
             except Exception as e:
                 logger.exception(f"[{symbol}] Position sizing failed: {e}")
                 result["reasons"].append(f"Position sizing failed: {e}")
+                end_time = datetime.now(timezone.utc)
+                result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
                 return result
 
             # ===== STEP 3: Run Risk Checks =====
@@ -242,12 +253,53 @@ class TradeOrchestrator:
 
                 if not result["can_execute"]:
                     result["decision"] = "REJECT"
+                    end_time = datetime.now(timezone.utc)
+                    result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
                     return result
 
             except Exception as e:
                 logger.exception(f"[{symbol}] Risk checks failed: {e}")
                 result["reasons"].append(f"Risk checks failed: {e}")
+                end_time = datetime.now(timezone.utc)
+                result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
                 return result
+
+            # ===== STEP 3.5: Economic Calendar Check =====
+            logger.info(f"[{symbol}] Step 3.5: Checking economic calendar...")
+            try:
+                economic_check = await self._check_economic_calendar_risk(symbol)
+                if economic_check:
+                    # Add to risk checks
+                    risk_checks.append(economic_check)
+                    result["workflow"]["risk_checks"]["checks"].append({
+                        "name": "economic_calendar",
+                        "level": economic_check.level.value,
+                        "message": economic_check.message,
+                    })
+
+                    # Recalculate overall risk level
+                    risk_levels = [check.level for check in risk_checks]
+                    if risk_levels:
+                        max_level = max(risk_levels, key=lambda x: x.value)
+                        overall_level = max_level
+                        result["workflow"]["risk_checks"]["overall_level"] = overall_level.value
+                        result["risk_level"] = overall_level.value
+
+                    # Check if we should reject due to economic events
+                    if economic_check.level == RiskLevel.CRITICAL:
+                        result["reasons"].append(f"CRITICAL: {economic_check.message}")
+                        result["can_execute"] = False
+                        result["decision"] = "REJECT"
+                        return result
+                    elif economic_check.level == RiskLevel.WARNING:
+                        result["warnings"].append(economic_check.message)
+
+                logger.info(f"[{symbol}] Economic calendar check completed")
+
+            except Exception as e:
+                logger.exception(f"[{symbol}] Economic calendar check failed: {e}")
+                # Don't fail the entire orchestration, just log the warning
+                result["warnings"].append(f"Economic calendar check failed: {e}")
 
             # ===== STEP 4: Execute Order (if approved) =====
             if auto_execute and result["can_execute"]:
@@ -295,6 +347,44 @@ class TradeOrchestrator:
         result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
 
         return result
+
+    async def _check_economic_calendar_risk(self, symbol: str) -> Optional[RiskCheckResult]:
+        """Check economic calendar for high-impact events that should prevent trading.
+        
+        Returns a RiskCheckResult if trading should be avoided, None otherwise.
+        """
+        try:
+            # Initialize economic calendar if not already done
+            calendar = EconomicCalendar(api_key=getattr(settings, "trading_economics_key", None))
+            
+            # Check for high-impact events in the next 60 minutes
+            should_avoid = calendar.should_avoid_trading(symbol, minutes_window=60)
+            
+            if should_avoid:
+                # Get the specific events
+                events = calendar.get_events_for_pair(symbol, minutes_ahead=60)
+                high_impact_events = [e for e in events if e.is_high_impact()]
+                
+                if high_impact_events:
+                    next_event = high_impact_events[0]
+                    minutes_until = next_event.minutes_until()
+                    
+                    return RiskCheckResult(
+                        level=RiskLevel.CRITICAL,  # High-impact events = critical risk
+                        message=f"High-impact {next_event.name} event in {minutes_until} minutes - trading not recommended",
+                        details={
+                            "check_type": "economic_calendar",
+                            "events_count": len(high_impact_events),
+                            "next_event": next_event.to_dict(),
+                            "minutes_until": minutes_until
+                        }
+                    )
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Economic calendar risk check failed for {symbol}: {e}")
+            return None
 
     async def analyze_trade(
         self,

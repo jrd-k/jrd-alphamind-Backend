@@ -5,6 +5,7 @@ import logging
 from app.core import config
 from app.services.indicators.fibonacci import compute_fibonacci
 from app.services.brain import store as brain_store
+from app.services.economic_calendar import EconomicCalendar
 
 logger = logging.getLogger(__name__)
 settings = config.settings
@@ -40,6 +41,7 @@ class Brain:
         self.deepseek = None
         self.openai = None
         self.ml_service = None
+        self.economic_calendar = None
         
         if DeepSeekClient and settings.deepseek_api_key:
             try:
@@ -61,6 +63,12 @@ class Brain:
                 asyncio.create_task(self.ml_service.load_models())
             except Exception as e:
                 logger.warning("ML service not initialized: %s", e)
+
+        # Initialize economic calendar
+        try:
+            self.economic_calendar = EconomicCalendar(api_key=getattr(settings, "trading_economics_key", None))
+        except Exception as e:
+            logger.warning("Economic calendar not initialized: %s", e)
 
     async def decide(
         self,
@@ -265,8 +273,30 @@ class Brain:
             else:
                 final = "HOLD"  # Not confident enough
 
+        # Check economic calendar for high-impact events that should prevent trading
+        economic_override = False
+        economic_events = []
+        if self.economic_calendar:
+            try:
+                # Check for high-impact events in the next 60 minutes
+                should_avoid = self.economic_calendar.should_avoid_trading(symbol, minutes_window=60)
+                if should_avoid:
+                    economic_override = True
+                    # Get the specific events causing the override
+                    events = self.economic_calendar.get_events_for_pair(symbol, minutes_ahead=60)
+                    economic_events = [e.to_dict() for e in events if e.is_high_impact()]
+                    final = "HOLD"  # Override decision to HOLD during high-impact events
+                    logger.info(f"[{symbol}] Economic calendar override: HOLD due to {len(economic_events)} high-impact events")
+            except Exception as e:
+                logger.warning(f"[{symbol}] Economic calendar check failed: {e}")
+
         decision["decision"] = final
         decision["confidence"] = confidence
+        decision["economic_calendar"] = {
+            "override": economic_override,
+            "events": economic_events,
+            "should_avoid_trading": economic_override
+        }
 
         # Persist decision to Redis and DB (best-effort, do not fail on error)
         try:

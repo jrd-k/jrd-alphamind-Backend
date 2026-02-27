@@ -1,0 +1,48 @@
+CRITICAL ISSUES FOUND - FRONTEND & BACKEND MISMATCH
+==================================================
+
+1. AUTH RESPONSE MISMATCH
+   PROBLEM: Backend returns { id, username, created_at }
+   FRONTEND EXPECTS: { user_id, id, name }
+   FILE: frontend/src/contexts/AuthContext.tsx line 52-60
+   
+2. BROKER CONNECT NOT USING API
+   PROBLEM: Broker connection components use mock data, don't call backend API
+   FILES: 
+   - frontend/src/components/brokers/ExnessConnect.tsx
+   - frontend/src/components/brokers/JustMarketsConnect.tsx
+   - frontend/src/components/brokers/MetaTraderConnect.tsx
+   They all have local state but don't call /api/v1/brokers/accounts endpoint
+
+3. MISSING BROKER ACCOUNT MANAGER API INTEGRATION
+   PROBLEM: BrokerAccountManager displays UI but doesn't fetch from backend
+   FILE: frontend/src/components/brokers/BrokerAccountManager.tsx
+   Should call: GET /api/v1/brokers/accounts
+
+4. INVALID TOKEN STORAGE
+   PROBLEM: Token stored as 'auth_token' but not validated on startup
+   FILE: frontend/src/contexts/AuthContext.tsx line 42-48
+   Should: Validate token by calling GET /api/v1/users/me
+
+5. NO ERROR HANDLING IN API CALLS
+   PROBLEM: API errors not properly caught and displayed
+   FILE: frontend/src/services/api.ts
+   The request() method throws on !response.ok but doesn't provide structured errors
+
+6. BROKER DATA NOT PERSISTED
+   PROBLEM: Broker connection state resets on page refresh
+   FILE: frontend/src/contexts/BrokerContext.tsx
+   Should: Persist to localStorage or fetch from backend
+
+7. MISSING AUTHENTICATION GUARD
+   PROBLEM: Protected routes accessible without token
+   FILE: frontend/src/App.tsx
+   Routes like /live, /analytics accessible without auth check
+
+RECOMMENDED FIXES PRIORITY:
+1. Fix AuthContext response parsing (HIGH)
+2. Integrate broker components with backend API (HIGH)
+3. Add token validation on startup (HIGH)
+4. Add route protection (MEDIUM)
+5. Improve error handling (MEDIUM)
+6. Persist broker data (LOW)

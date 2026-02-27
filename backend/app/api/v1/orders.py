@@ -9,7 +9,10 @@ from app.core.security import get_current_user
 from app.services.trade_orchestrator import TradeOrchestrator
 
 router = APIRouter()
-orchestrator = TradeOrchestrator()
+
+def get_orchestrator():
+    """Get orchestrator instance - created on demand to avoid import-time issues"""
+    return TradeOrchestrator()
 
 
 @router.post("/", response_model=OrderRead)
@@ -27,7 +30,7 @@ async def submit_order(order_in: OrderCreate, db: Session = Depends(get_db), cur
 
     # Now run orchestrator to check risks and execute if safe
     try:
-        result = await orchestrator.orchestrate_trade(
+        result = await get_orchestrator().orchestrate_trade(
             symbol=order_in.symbol,
             current_price=order_in.current_price,
             requested_qty=order_in.quantity,

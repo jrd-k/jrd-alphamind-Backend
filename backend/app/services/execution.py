@@ -1,6 +1,7 @@
 import json
 import os
 import asyncio
+import logging
 from typing import Dict, Any, Optional
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -10,15 +11,97 @@ from app.services.brokers.paper_client import PaperTradingClient
 from app.services.brokers.justmarkets_client import JustMarketsClient
 from app.services.brokers.mt5_client import MT5Client
 
+logger = logging.getLogger(__name__)
+
 try:
     import redis.asyncio as redis_async
 except Exception:
     redis_async = None
 
 
-async def get_broker_client():
-    """Select and return the appropriate broker client based on BROKER env var."""
-    broker = os.getenv("BROKER", "paper").lower()
+async def get_broker_client(user_id: Optional[int] = None):
+    """Select and return the appropriate broker client based on user settings or BROKER env var.
+    
+    Args:
+        user_id: User ID to get broker account for. If None, falls back to env var.
+    """
+    from app.core.database import SessionLocal
+    from app.models.orm_models import BrokerAccount
+    
+    broker_client = None
+    
+    # If user_id provided, try to get user's active broker account
+    if user_id:
+        db = SessionLocal()
+        try:
+            active_account = db.query(BrokerAccount).filter(
+                BrokerAccount.user_id == user_id,
+                BrokerAccount.is_active == 1
+            ).first()
+            
+            if active_account:
+                broker_client = _create_broker_client_from_account(active_account)
+                logger.info(f"Using {active_account.broker_name} account for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to get broker account for user {user_id}: {e}")
+        finally:
+            db.close()
+    
+    # Fallback to environment variable if no user account found
+    if not broker_client:
+        broker = os.getenv("BROKER", "paper").lower()
+        broker_client = _create_broker_client_from_env(broker)
+        logger.info(f"Using {broker} broker from environment (fallback)")
+    
+    return broker_client
+
+
+def _create_broker_client_from_account(account: BrokerAccount):
+    """Create broker client from BrokerAccount model."""
+    broker_name = account.broker_name.lower()
+    
+    if broker_name == "exness":
+        from app.services.brokers.exness_client import ExnessClient
+        # Override environment variables with account data
+        original_env = {}
+        if account.api_key:
+            original_env["EXNESS_API_KEY"] = os.environ.get("EXNESS_API_KEY")
+            os.environ["EXNESS_API_KEY"] = account.api_key
+        if account.base_url:
+            original_env["EXNESS_BASE_URL"] = os.environ.get("EXNESS_BASE_URL")
+            os.environ["EXNESS_BASE_URL"] = account.base_url
+        
+        client = ExnessClient()
+        
+        # Restore original environment
+        for key, value in original_env.items():
+            if value is not None:
+                os.environ[key] = value
+            else:
+                os.environ.pop(key, None)
+        
+        return client
+        
+    elif broker_name == "justmarkets":
+        from app.services.brokers.justmarkets_client import JustMarketsClient
+        # Similar pattern for JustMarkets
+        return JustMarketsClient()
+        
+    elif broker_name == "mt5":
+        from app.services.brokers.mt5_client import MT5Client
+        return MT5Client(
+            mt5_path=account.mt5_path,
+            account=account.account_id,
+            password=account.mt5_password
+        )
+    
+    # Default to paper trading
+    from app.services.brokers.paper_client import PaperTradingClient
+    return PaperTradingClient()
+
+
+def _create_broker_client_from_env(broker: str):
+    """Create broker client from environment variables (legacy method)."""
     if broker == "exness":
         return ExnessClient()
     elif broker == "justmarkets":
@@ -42,7 +125,7 @@ async def execute_order(order: Dict[str, Any]) -> Dict[str, Any]:
         Dict with order_id and status
     """
     # Get broker client
-    client = await get_broker_client()
+    client = await get_broker_client(order.get("user_id"))
 
     # If live trading is disabled or not explicitly confirmed, simulate the broker result (dry-run)
     # Require BOTH ENABLE_LIVE_TRADING=true and CONFIRM_LIVE=CONFIRM-LIVE to allow live execution

@@ -79,6 +79,25 @@ class BrainDecision(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class BrokerAccount(Base):
+    __tablename__ = "broker_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    broker_name = Column(String, nullable=False)  # 'exness', 'justmarkets', 'mt5', 'paper'
+    account_id = Column(String, nullable=True)  # Account ID/Login for the broker
+    api_key = Column(String, nullable=True)  # API key or token
+    api_secret = Column(String, nullable=True)  # API secret if needed
+    base_url = Column(String, nullable=True)  # Custom base URL if different from default
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = inactive
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Additional fields for specific brokers
+    mt5_path = Column(String, nullable=True)  # MT5 terminal path
+    mt5_password = Column(String, nullable=True)  # MT5 password
+
+
 # Expose a property named `metadata` on the mapped class after mapping has been
 # constructed. Declaring a class-level attribute named `metadata` conflicts with
 # SQLAlchemy's declarative internals, so we attach a property dynamically.

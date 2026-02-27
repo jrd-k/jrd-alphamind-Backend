@@ -326,6 +326,7 @@ class TestTradeOrchestrator:
         with patch.object(orchestrator.brain, "decide") as mock_decide:
             mock_decide.return_value = {
                 "decision": "BUY",
+                "confidence": 0.8,
                 "indicator": {},
                 "deepseek": None,
                 "openai": None,
