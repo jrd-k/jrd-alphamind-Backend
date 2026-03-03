@@ -184,6 +184,102 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
 # Test endpoint (requires auth)
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/accounts/balance
+
+## Frontend Integration
+
+This section explains how a frontend application should interact with the backend.
+
+### Base URL
+During development the backend runs at `http://localhost:8000`. For production adjust accordingly.
+
+### CORS
+The backend uses CORS middleware configured via `FRONTEND_ORIGINS` environment variable (see .env). Example value:
+
+```
+FRONTEND_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+Ensure your frontend's origin is listed; otherwise browser requests will be blocked.
+
+### Authentication
+Frontend must authenticate users by calling `/api/v1/auth/login` and storing the returned JWT. Include the token in subsequent requests:
+
+```
+Authorization: Bearer <access_token>
+```
+
+Token expiration controlled by `JWT_EXP_MINUTES`.
+
+### API Endpoints Overview
+
+Key endpoints for frontend usage:
+
+- **Auth**: `/api/v1/auth/register`, `/api/v1/auth/login`.
+- **Users**: `/api/v1/users/me`.
+- **Accounts**: `/api/v1/accounts/balance`, `/api/v1/accounts`.
+- **Market Data**: `/api/v1/marketdata` and `/api/stocks` (charts).
+- **Orders**: `/api/v1/orders`.
+- **Trades**: `/api/v1/trades`.
+- **Brain/ML**: `/api/v1/ml`, `/api/v1/brain/decisions`.
+- **Position Sizing**: `/api/v1/position-sizing`.
+- **Risk Management**: `/api/v1/risk`.
+- **Economic Calendar**: `/api/v1/economic-calendar`.
+
+Refer to the full API Reference section for payload schemas and examples.
+
+### WebSocket Connections
+
+Use the following websocket endpoints for real-time data:
+
+- `ws://localhost:8000/ws/trades` — trade events (requires JWT query param: `?token=<your_jwt>`).
+- `ws://localhost:8000/ws/market-data` — market data.
+- Other secure websockets under `/ws` as needed.
+
+Authenticate by including the token either as a query parameter or in a `Authorization: Bearer` header (some clients support this). Example:
+
+```js
+const ws = new WebSocket(`ws://localhost:8000/ws/trades?token=${accessToken}`);
+```
+
+### HTTP Client Configuration
+
+Configure your HTTP client (e.g. axios) with a base URL and authorization header:
+
+```js
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+});
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+```
+
+### Example Workflow
+
+1. **Login** → store JWT.
+2. **Fetch initial data** (account, market data).
+3. **Subscribe to WebSocket** to receive live trade updates.
+4. **Place orders** via `/api/v1/orders`.
+5. **Handle token expiry** and refresh accordingly.
+
+### Environment Variables for Frontend
+
+```
+REACT_APP_API_URL=http://localhost:8000
+```
+
+Adjust the URL for production deployments.
+
+### Notes
+
+- All API routes are versioned under `/api/v1`.
+- The `/api/stocks` prefix is maintained for legacy compatibility with some charting code.
+- Ensure `FRONTEND_ORIGINS` includes the frontend origin, including port for local dev.
+- WebSocket CORS is handled automatically by browsers if origins match.
+
+---
 ```
 
 ---
