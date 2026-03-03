@@ -33,6 +33,46 @@ A production-ready FastAPI trading automation platform with **intelligent decisi
 - **Persistent Storage** (PostgreSQL + SQLite) for trade history and decisions
 - **JWT Authentication** for secure API access
 
+### Backend Workflow (Step-by-step)
+
+1. **Startup & Initialization**
+   - When the FastAPI application (`app/main.py`) launches it calls `init_db()` to create database tables and configures the CORS middleware based on `FRONTEND_ORIGINS`.
+   - Optional services such as the scheduler and Redis connection are also initialized in the lifespan/startup events.
+
+2. **Request Reception**
+   - A client (frontend or API user) sends an HTTP request to an endpoint under `/api/v1` or a websocket path under `/ws`.
+   - The request passes through middleware (CORS, authentication) before reaching the router.
+
+3. **Routing & Validation**
+   - FastAPI routes the request to the appropriate router module (e.g. `orders`, `marketdata`, `auth`).
+   - Pydantic models validate the incoming JSON payloads or query parameters and perform type conversion.
+
+4. **Business Logic Execution**
+   - The endpoint handler invokes service/helper functions located in `app/services` or `app/core`.
+   - These services perform operations such as querying or updating the database via SQLAlchemy, calling external broker APIs, calculating indicators, or running AI models.
+   - Conditional logic handles permission checks, risk management, and live vs. paper trading.
+
+5. **Database & Caching**
+   - Persistent data (users, trades, decisions) is stored in PostgreSQL or SQLite using SQLAlchemy ORM models.
+   - Redis is used for pub/sub (real-time trade updates), caching market data, and coordinating websockets.
+
+6. **WebSocket Handling**
+   - WebSocket endpoints accept connections and may require a JWT token.
+   - Message handlers subscribe to Redis channels and push updates to connected clients in real time.
+
+7. **Response Generation**
+   - After processing, handlers return JSON responses or WebSocket messages.
+   - Responses include status codes, data payloads, and error messages when validation fails.
+
+8. **Background Tasks & Scheduler**
+   - Asynchronous background tasks (e.g. polling market data, running brain decisions) are scheduled via APScheduler or `asyncio.create_task`.
+   - These tasks can publish events to Redis, trigger order execution, or write to the database.
+
+9. **Shutdown**
+   - On application shutdown, resources such as Redis connections and schedulers are gracefully closed.
+
+This step-by-step flow ensures all parts of the backend—from API entrypoint to persistence and real‑time streaming—work together in a predictable, modular fashion.
+
 The system is designed to be:
 - **Modular** — Easy to swap brokers or add new indicators
 - **Production-Ready** — Full test coverage, migrations, CI/CD
