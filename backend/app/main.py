@@ -7,8 +7,33 @@ from app.api.v1 import broker_accounts, websockets_secure
 from app.core.database import init_db
 from app.core.config import settings
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise
+
+    logger.info("Application startup complete")
+    yield
+    # shutdown
+    import asyncio, logging
+
+    logger = logging.getLogger(__name__)
+    # scheduler shutdown logic could go here if needed
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="jrd-alphamind-backend")
+    app = FastAPI(title="jrd-alphamind-backend", lifespan=lifespan)
 
     # Configure CORS
     allowed_origins = [o.strip() for o in settings.frontend_origins.split(",") if o.strip()]
@@ -44,36 +69,6 @@ def create_app() -> FastAPI:
     app.websocket("/ws/trades")(websockets_secure.websocket_trades)
     app.websocket("/ws/market-data")(websockets_secure.websocket_market_data)
 
-    # initialize DB in dev
-    @app.on_event("startup")
-    def on_startup():
-        import logging
-
-        logger = logging.getLogger(__name__)
-        try:
-            init_db()
-            logger.info("Database initialized successfully")
-        except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            raise
-
-        logger.info("Application startup complete")
-        #     task = loop.create_task(scheduler.start())
-        #     logger.info("Scheduler task created")
-
-    @app.on_event("shutdown")
-    def on_shutdown():
-        import asyncio
-        import logging
-        # from app.workers.scheduler import get_scheduler
-
-        logger = logging.getLogger(__name__)
-        # scheduler = get_scheduler()
-        # try:
-        #     asyncio.run(scheduler.stop())
-        #     logger.info("Scheduler stopped on shutdown")
-        # except Exception as e:
-        #     logger.error(f"Error stopping scheduler: {e}")
 
     return app
 

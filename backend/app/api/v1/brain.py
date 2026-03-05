@@ -100,6 +100,9 @@ def list_decisions(
             )
 
         db.close()
+        return {"total": total, "count": len(result), "items": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/analytics")
@@ -265,6 +268,3 @@ async def get_brain_symbols(
     """Get all symbols that have brain decisions."""
     symbols = db.query(BrainDecision.symbol).distinct().all()
     return {"symbols": [s[0] for s in symbols]}
-        return {"total": total, "count": len(result), "items": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
