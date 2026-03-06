@@ -19,7 +19,7 @@ class UserRead(BaseModel):
 class OrderCreate(BaseModel):
     symbol: str
     quantity: float
-    current_price: float
+    current_price: Optional[float] = None
     stop_loss_pips: Optional[float] = None
     indicators: Optional[List[Dict[str, Any]]] = None
 

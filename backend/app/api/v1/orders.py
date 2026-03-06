@@ -15,6 +15,7 @@ def get_orchestrator():
     return TradeOrchestrator()
 
 
+@router.post("", response_model=OrderRead)
 @router.post("/", response_model=OrderRead)
 async def submit_order(order_in: OrderCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # Create order record first with pending status
@@ -72,6 +73,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     return o
 
 
+@router.get("", response_model=List[OrderRead])
 @router.get("/", response_model=List[OrderRead])
 def list_orders(db: Session = Depends(get_db)):
     return db.query(Order).order_by(Order.created_at.desc()).limit(100).all()

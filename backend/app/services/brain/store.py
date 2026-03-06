@@ -69,6 +69,7 @@ async def save_decision_db(decision: dict) -> None:
                     indicator=decision.get("indicator"),
                     deepseek=decision.get("deepseek"),
                     openai=decision.get("openai"),
+                    kimi=decision.get("kimi"),
                     timestamp=ts_parsed,
                 )
                 session.add(bd)

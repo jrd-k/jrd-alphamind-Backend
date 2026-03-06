@@ -22,6 +22,11 @@ except Exception:  # pragma: no cover - optional
     OpenAIClient = None  # type: ignore
 
 try:
+    from app.services.ai.kimi_client import KimiClient
+except Exception:  # pragma: no cover - optional
+    KimiClient = None  # type: ignore
+
+try:
     from app.services.ml import MLTradingService
 except Exception:  # pragma: no cover - optional
     MLTradingService = None  # type: ignore
@@ -40,6 +45,7 @@ class Brain:
     def __init__(self):
         self.deepseek = None
         self.openai = None
+        self.kimi = None
         self.ml_service = None
         self.economic_calendar = None
         
@@ -54,6 +60,12 @@ class Brain:
                 self.openai = OpenAIClient()
             except Exception as e:
                 logger.warning("OpenAI client not initialized: %s", e)
+
+        if KimiClient and settings.kimi_api_key:
+            try:
+                self.kimi = KimiClient()
+            except Exception as e:
+                logger.warning("Kimi client not initialized: %s", e)
 
         if MLTradingService:
             try:
@@ -114,7 +126,7 @@ class Brain:
             summary = fib.get("summary", "")
             indicator_signal = fib.get("signals", "HOLD")
 
-        decision = {"symbol": symbol, "indicator": fib, "deepseek": None, "openai": None, "ml": None, "decision": "HOLD"}
+        decision = {"symbol": symbol, "indicator": fib, "deepseek": None, "openai": None, "kimi": None, "ml": None, "decision": "HOLD"}
 
         # Enrich with DeepSeek if available
         if self.deepseek:
@@ -136,6 +148,14 @@ class Brain:
                 decision["openai"] = openai_res
             except Exception as e:
                 logger.warning("OpenAI chat failed: %s", e)
+
+        # Ask Kimi AI for recommendation if available
+        if self.kimi:
+            try:
+                kimi_decision = await self.kimi.decide_trade(symbol, summary, f"Current price: {current_price}")
+                decision["kimi"] = {"decision": kimi_decision}
+            except Exception as e:
+                logger.warning("Kimi AI decision failed: %s", e)
 
         # Get ML prediction if available
         if self.ml_service:
@@ -189,6 +209,7 @@ class Brain:
         conf_indicator = 0.4
         conf_deepseek = 0.1
         conf_openai = 0.2
+        conf_kimi = 0.25  # Kimi gets higher weight than OpenAI
         conf_ml = 0.3
 
         total_weight = 0.0
@@ -237,6 +258,20 @@ class Brain:
                         ai_score = -1.0
                     score += ai_score * conf_openai
                     total_weight += conf_openai
+        except Exception:
+            pass
+
+        # Kimi AI contribution: direct decision parsing
+        try:
+            if decision.get("kimi") and decision["kimi"].get("decision"):
+                kimi_decision = decision["kimi"]["decision"].upper()
+                kimi_score = 0.0
+                if kimi_decision == "BUY":
+                    kimi_score = 1.0
+                elif kimi_decision == "SELL":
+                    kimi_score = -1.0
+                score += kimi_score * conf_kimi
+                total_weight += conf_kimi
         except Exception:
             pass
 

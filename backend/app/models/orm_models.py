@@ -75,6 +75,7 @@ class BrainDecision(Base):
     indicator = Column(JSON, nullable=True)
     deepseek = Column(JSON, nullable=True)
     openai = Column(JSON, nullable=True)
+    kimi = Column(JSON, nullable=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -48,6 +48,7 @@ class DecisionRead(BaseModel):
     indicator: Optional[dict] = None
     deepseek: Optional[dict] = None
     openai: Optional[dict] = None
+    kimi: Optional[dict] = None
     timestamp: datetime
     created_at: Optional[datetime] = None
 

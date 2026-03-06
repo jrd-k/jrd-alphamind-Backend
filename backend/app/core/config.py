@@ -59,6 +59,9 @@ except Exception:
             # OpenAI
             openai_api_key: str = ""
             openai_base_url: str = "https://api.openai.com/v1"
+            # Kimi AI (Moonshot AI)
+            kimi_api_key: str = ""
+            kimi_base_url: str = "https://api.moonshot.cn/v1"
             # JWT settings
             jwt_secret: str = "change-me-in-production"
             jwt_algorithm: str = "HS256"
@@ -99,6 +102,9 @@ except Exception:
             # OpenAI
             openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
             openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            # Kimi AI (Moonshot AI)
+            kimi_api_key: str = os.getenv("KIMI_API_KEY", "")
+            kimi_base_url: str = os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1")
             # Trading execution
             enable_live_trading: bool = os.getenv("ENABLE_LIVE_TRADING", "False").lower() in ("1", "true", "yes")
             max_trade_qty: float = float(os.getenv("MAX_TRADE_QTY", "1.0"))
