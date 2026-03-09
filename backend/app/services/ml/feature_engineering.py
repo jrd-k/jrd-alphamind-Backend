@@ -139,6 +139,11 @@ class MLFeatureEngineer:
 
     def _add_volatility_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add volatility and risk measures."""
+        # Bollinger Bands
+        df['bb_middle'], df['bb_upper'], df['bb_lower'] = self._calculate_bollinger_bands(df['close'])
+        df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
+        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+
         # ATR (Average True Range)
         df['atr'] = self._calculate_atr(df)
 

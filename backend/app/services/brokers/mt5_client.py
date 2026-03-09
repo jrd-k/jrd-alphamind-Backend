@@ -1,11 +1,12 @@
-"""MetaTrader 5 (MT5) broker client integration.
+"""PyTrader MT4/MT5 broker client integration.
 
-This client connects to MT5 terminals (demo or live accounts) and executes orders,
-retrieves balance/positions, and manages account information.
+This client connects to MT4/MT5 terminals via PyTrader API (TCP socket to EA)
+and executes orders, retrieves balance/positions, and manages account information.
 
 Requires:
-- MetaTrader 5 terminal running locally or remotely
-- MT5 Python package: pip install MetaTrader5
+- MetaTrader 4 or 5 terminal running locally or remotely
+- PyTrader EA installed in the terminal
+- PyTrader Python package
 """
 
 import logging
@@ -15,74 +16,56 @@ from datetime import datetime, timezone
 from .base import BrokerClient
 
 try:
-    import MetaTrader5 as mt5
-    MT5_AVAILABLE = True
+    import PyTrader as MT
+    PYTRADER_AVAILABLE = True
 except ImportError:
-    MT5_AVAILABLE = False
-    logging.warning("MetaTrader5 package not found. Install with: pip install MetaTrader5")
+    PYTRADER_AVAILABLE = False
+    logging.warning("PyTrader package not found. Install with: pip install PyTrader")
 
 
 logger = logging.getLogger(__name__)
 
 
-class MT5Client(BrokerClient):
-    """MetaTrader 5 broker client for executing orders and account management.
+class PyTraderClient(BrokerClient):
+    """PyTrader client for MT4/MT5 connectivity via TCP socket to EA.
     
-    Connects to a running MT5 terminal and sends orders directly to the MT5 platform.
+    Connects to a running MT4/MT5 terminal with PyTrader EA installed.
     Supports both demo and live accounts.
     """
 
-    def __init__(self, mt5_path: Optional[str] = None, account: Optional[str] = None, password: Optional[str] = None):
-        """Initialize MT5 client.
+    def __init__(self, host: str = "localhost", port: int = 1122):
+        """Initialize PyTrader client.
         
         Args:
-            mt5_path: Optional path to MT5 terminal executable (e.g., 'C:\\Program Files\\MetaTrader 5\\terminal.exe')
-            account: Optional account number/login to connect to
-            password: Optional password for the account
+            host: MT4/MT5 terminal host (default: localhost)
+            port: PyTrader EA port (default: 1122)
         """
-        if not MT5_AVAILABLE:
+        if not PYTRADER_AVAILABLE:
             raise RuntimeError(
-                "MetaTrader5 package not found. Install with: pip install MetaTrader5"
+                "PyTrader package not found. Install PyTrader EA and Python package."
             )
         
-        self.mt5_path = mt5_path
-        self.account = account
-        self.password = password
-        self._initialized = False
+        self.host = host
+        self.port = port
+        self._connected = False
         self._connect()
 
     def _connect(self):
-        """Initialize and connect to MT5 terminal."""
+        """Initialize and connect to PyTrader EA."""
         try:
-            # Initialize MT5 connection
-            if self.mt5_path:
-                if not mt5.initialize(path=self.mt5_path):
-                    logger.error(f"Failed to initialize MT5 at path: {self.mt5_path}")
-                    return
-            else:
-                if not mt5.initialize():
-                    logger.error("Failed to initialize MT5. Ensure MT5 terminal is running.")
-                    return
-
-            logger.info("MT5 initialized successfully")
-
-            # Connect to account if credentials provided
-            if self.account and self.password:
-                if not mt5.login(self.account, password=self.password):
-                    logger.error(f"Failed to login to MT5 account {self.account}")
-                    return
-                logger.info(f"Connected to MT5 account {self.account}")
-
-            self._initialized = True
+            # Connect to PyTrader EA via TCP
+            MT.connect(host=self.host, port=self.port)
+            self._connected = True
+            logger.info(f"Connected to PyTrader EA at {self.host}:{self.port}")
         except Exception as e:
-            logger.error(f"Error connecting to MT5: {e}")
-            self._initialized = False
+            logger.error(f"Error connecting to PyTrader EA: {e}")
+            self._connected = False
 
     def _ensure_connected(self) -> bool:
-        """Ensure MT5 is connected and ready."""
-        if not self._initialized:
+        """Ensure PyTrader is connected and ready."""
+        if not self._connected:
             self._connect()
-        return self._initialized
+        return self._connected
 
     async def place_order(
         self,
@@ -105,65 +88,47 @@ class MT5Client(BrokerClient):
             Dict with order details: order_id, status, price, volume, timestamp
         """
         if not self._ensure_connected():
-            raise RuntimeError("MT5 not connected")
+            raise RuntimeError("PyTrader not connected")
 
         try:
-            # Normalize symbol for MT5 (add suffix if needed, e.g., EURUSD -> EURUSD)
-            mt5_symbol = symbol.upper()
+            # Normalize symbol
+            instrument = symbol.upper()
 
-            # Get current price
-            tick = mt5.symbol_info_tick(mt5_symbol)
-            if tick is None:
-                logger.error(f"Failed to get tick for {mt5_symbol}")
-                return {
-                    "broker": "mt5",
-                    "order_id": None,
-                    "status": "error",
-                    "error": f"Symbol {mt5_symbol} not found",
-                }
-
-            # Determine order direction
+            # Map order type
             if side.lower() == "buy":
-                order_direction = mt5.ORDER_BUY
-                order_price = tick.ask
+                ordertype = "buy"
             elif side.lower() == "sell":
-                order_direction = mt5.ORDER_SELL
-                order_price = tick.bid
+                ordertype = "sell"
             else:
                 raise ValueError(f"Invalid side: {side}")
 
-            # Use provided price or market price
-            if order_type.lower() == "limit" and price:
-                order_price = price
+            # Use PyTrader API to place order
+            order_result = MT.Open_order(
+                instrument=instrument,
+                ordertype=ordertype,
+                volume=qty,
+                price=price if order_type.lower() == "limit" else None,
+                slippage=0
+            )
 
-            # Prepare order request
-            request = {
-                "action": mt5.TRADE_ACTION_DEAL,
-                "symbol": mt5_symbol,
-                "volume": qty,
-                "type": order_direction,
-                "price": order_price,
-                "deviation": 20,  # Deviation in pips
-                "magic": 12345,  # Magic number for tracking orders
-                "comment": "jrd-alphamind order",
-                "type_time": mt5.ORDER_TIME_GTC,  # Good-till-canceled
-                "type_filling": mt5.ORDER_FILLING_IOC,  # Immediate or Cancel
-            }
-
-            # Send order
-            result = mt5.order_send(request)
-
-            if result.retcode != mt5.TRADE_RETCODE_DONE:
-                logger.error(f"Order failed with retcode {result.retcode}: {result.comment}")
+            if order_result:
+                logger.info(f"Order placed successfully: {order_result}")
                 return {
-                    "broker": "mt5",
+                    "broker": "pytrader",
+                    "order_id": order_result.get("ticket"),
+                    "status": "filled",
+                    "price": order_result.get("price"),
+                    "volume": qty,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            else:
+                logger.error("Order placement failed")
+                return {
+                    "broker": "pytrader",
                     "order_id": None,
                     "status": "failed",
-                    "error": result.comment,
-                    "retcode": result.retcode,
+                    "error": "Order placement failed",
                 }
-
-            logger.info(f"Order placed successfully: {result.order}")
 
             return {
                 "broker": "mt5",
@@ -187,69 +152,94 @@ class MT5Client(BrokerClient):
             }
 
     async def get_balance(self) -> Dict[str, Any]:
-        """Get account balance and account info from MT5.
+        """Get account balance and account info from PyTrader.
         
         Returns:
             Dict with balance, equity, margin info
         """
         if not self._ensure_connected():
-            raise RuntimeError("MT5 not connected")
+            raise RuntimeError("PyTrader not connected")
 
         try:
-            account_info = mt5.account_info()
-            if account_info is None:
+            account_info = MT.Get_account_info()
+            if account_info:
+                return {
+                    "broker": "pytrader",
+                    "balance": account_info.get("balance"),
+                    "equity": account_info.get("equity"),
+                    "margin_used": account_info.get("margin"),
+                    "margin_free": account_info.get("margin_free"),
+                    "currency": account_info.get("currency"),
+                    "leverage": account_info.get("leverage"),
+                    "account_number": account_info.get("login"),
+                }
+            else:
                 logger.error("Failed to get account info")
                 return {}
 
-            return {
-                "broker": "mt5",
-                "balance": account_info.balance,
-                "equity": account_info.equity,
-                "margin_used": account_info.margin,
-                "margin_free": account_info.margin_free,
-                "currency": account_info.currency,
-                "leverage": account_info.leverage,
-                "account_number": account_info.login,
-            }
-
         except Exception as e:
-            logger.error(f"Error getting balance from MT5: {e}")
+            logger.error(f"Error getting balance from PyTrader: {e}")
             return {"error": str(e)}
 
     async def get_positions(self) -> List[Dict[str, Any]]:
-        """Get all open positions from MT5.
+        """Get all open positions from PyTrader.
         
         Returns:
             List of open positions with symbol, side, volume, price, profit/loss
         """
         if not self._ensure_connected():
-            raise RuntimeError("MT5 not connected")
+            raise RuntimeError("PyTrader not connected")
 
         try:
-            positions = mt5.positions_get()
-            if positions is None or len(positions) == 0:
+            positions = MT.Get_positions()
+            if positions:
+                result = []
+                for pos in positions:
+                    result.append({
+                        "symbol": pos.get("symbol"),
+                        "side": "buy" if pos.get("type") == 0 else "sell",  # Assuming 0=buy, 1=sell
+                        "volume": pos.get("volume"),
+                        "price": pos.get("price_open"),
+                        "profit_loss": pos.get("profit"),
+                        "open_time": pos.get("time"),
+                    })
+                return result
+            else:
                 logger.info("No open positions")
                 return []
 
-            result = []
-            for pos in positions:
-                result.append({
-                    "symbol": pos.symbol,
-                    "side": "buy" if pos.type == mt5.ORDER_BUY else "sell",
-                    "volume": pos.volume,
-                    "price": pos.price_open,
-                    "profit_loss": pos.profit,
-                    "open_time": datetime.fromtimestamp(pos.time, tz=timezone.utc).isoformat(),
-                })
+        except Exception as e:
+            logger.error(f"Error getting positions from PyTrader: {e}")
+            return []
 
-            return result
+    async def get_historical_data(self, symbol: str, timeframe: str = "M1", bars: int = 100) -> List[Dict[str, Any]]:
+        """Get historical bar data from PyTrader.
+        
+        Args:
+            symbol: Trading pair (e.g., 'EURUSD')
+            timeframe: Timeframe (e.g., 'M1', 'H1', 'D1')
+            bars: Number of bars to retrieve
+            
+        Returns:
+            List of OHLCV data
+        """
+        if not self._ensure_connected():
+            raise RuntimeError("PyTrader not connected")
+
+        try:
+            data = MT.Get_last_x_bars_from_now(symbol, timeframe, bars)
+            if data:
+                return data
+            else:
+                logger.error(f"Failed to get historical data for {symbol}")
+                return []
 
         except Exception as e:
-            logger.error(f"Error getting positions from MT5: {e}")
+            logger.error(f"Error getting historical data from PyTrader: {e}")
             return []
 
     def close(self):
-        """Close MT5 connection."""
-        if MT5_AVAILABLE:
-            mt5.shutdown()
-            logger.info("MT5 connection closed")
+        """Close PyTrader connection."""
+        if PYTRADER_AVAILABLE:
+            MT.disconnect()
+            logger.info("PyTrader connection closed")
