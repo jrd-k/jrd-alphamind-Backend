@@ -6,10 +6,8 @@ from typing import Dict, Any, Optional
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.orm_models import Trade
-from app.services.brokers.exness_client import ExnessClient
 from app.services.brokers.paper_client import PaperTradingClient
-from app.services.brokers.justmarkets_client import JustMarketsClient
-from app.services.brokers.mt5_client import MT5Client
+from app.services.brokers.mt5_client import PyTraderClient
 
 logger = logging.getLogger(__name__)
 
@@ -56,61 +54,33 @@ async def get_broker_client(user_id: Optional[int] = None):
     return broker_client
 
 
-def _create_broker_client_from_account(account: BrokerAccount):
+def _create_broker_client_from_account(account):
     """Create broker client from BrokerAccount model."""
     broker_name = account.broker_name.lower()
-    
-    if broker_name == "exness":
-        from app.services.brokers.exness_client import ExnessClient
-        # Override environment variables with account data
-        original_env = {}
-        if account.api_key:
-            original_env["EXNESS_API_KEY"] = os.environ.get("EXNESS_API_KEY")
-            os.environ["EXNESS_API_KEY"] = account.api_key
-        if account.base_url:
-            original_env["EXNESS_BASE_URL"] = os.environ.get("EXNESS_BASE_URL")
-            os.environ["EXNESS_BASE_URL"] = account.base_url
-        
-        client = ExnessClient()
-        
-        # Restore original environment
-        for key, value in original_env.items():
-            if value is not None:
-                os.environ[key] = value
-            else:
-                os.environ.pop(key, None)
-        
-        return client
-        
-    elif broker_name == "justmarkets":
-        from app.services.brokers.justmarkets_client import JustMarketsClient
-        # Similar pattern for JustMarkets
-        return JustMarketsClient()
-        
-    elif broker_name == "mt5":
-        from app.services.brokers.mt5_client import MT5Client
-        return MT5Client(
-            mt5_path=account.mt5_path,
-            account=account.account_id,
-            password=account.mt5_password
+
+    if broker_name == "mt5":
+        from app.services.brokers.mt5_client import PyTraderClient
+        return PyTraderClient(
+            account_id=account.account_id,
+            api_key=account.api_key or "",
+            api_secret=account.api_secret or "",
+            server=account.server or ""
         )
-    
-    # Default to paper trading
+
+    # Default to paper trading for any other broker
     from app.services.brokers.paper_client import PaperTradingClient
     return PaperTradingClient()
 
 
 def _create_broker_client_from_env(broker: str):
     """Create broker client from environment variables (legacy method)."""
-    if broker == "exness":
-        return ExnessClient()
-    elif broker == "justmarkets":
-        return JustMarketsClient()
-    elif broker == "mt5":
-        return MT5Client(
-            mt5_path=os.getenv("MT5_PATH"),
-            account=os.getenv("MT5_ACCOUNT"),
-            password=os.getenv("MT5_PASSWORD")
+    if broker == "mt5":
+        from app.services.brokers.mt5_client import PyTraderClient
+        return PyTraderClient(
+            account_id=os.getenv("MT5_ACCOUNT", ""),
+            api_key=os.getenv("MT5_API_KEY", ""),
+            api_secret=os.getenv("MT5_API_SECRET", ""),
+            server=os.getenv("MT5_SERVER", "")
         )
     return PaperTradingClient()
 

@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import socketio
+import uvicorn
+from socketio import ASGIApp
 
 from app.api.v1 import auth, users, orders, marketdata, trades, instruments, accounts, websockets, ml, general
 from app.api.v1 import orchestrator, indicators, brain, webhook, economic_calendar, position_sizing, risk_management
@@ -8,6 +11,48 @@ from app.core.database import init_db
 from app.core.config import settings
 
 from contextlib import asynccontextmanager
+
+
+# Create Socket.IO server with ASGI mode for FastAPI integration
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins=settings.frontend_origins.split(',') if settings.frontend_origins else [],
+    logger=False,  # Reduce log noise
+    engineio_logger=False
+)
+
+
+@sio.event
+async def connect(sid, environ, auth):
+    """Handle Socket.IO connection."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Socket.IO client connected: {sid}")
+    return True
+
+
+@sio.event
+async def disconnect(sid):
+    """Handle Socket.IO disconnection."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Socket.IO client disconnected: {sid}")
+
+
+@sio.event
+async def subscribe_symbol(sid, data):
+    """Handle symbol subscription."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Client {sid} subscribed to symbol: {data}")
+    # Join room for the symbol
+    await sio.enter_room(sid, f"symbol_{data.get('symbol', 'unknown')}")
+
+
+@sio.event
+async def unsubscribe_symbol(sid, data):
+    """Handle symbol unsubscription."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Client {sid} unsubscribed from symbol: {data}")
+    # Leave room for the symbol
+    await sio.leave_room(sid, f"symbol_{data.get('symbol', 'unknown')}")
 
 
 @asynccontextmanager
@@ -69,11 +114,12 @@ def create_app() -> FastAPI:
     app.websocket("/ws/trades")(websockets_secure.websocket_trades)
     app.websocket("/ws/market-data")(websockets_secure.websocket_market_data)
 
-
     return app
 
 
+# Create the combined ASGI app
 app = create_app()
+socket_app = ASGIApp(sio, app)
 
 # Ensure DB tables exist when the module is imported (helps tests and dev runs)
 try:
@@ -85,4 +131,4 @@ except Exception:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(socket_app, host="0.0.0.0", port=8000, reload=True)
